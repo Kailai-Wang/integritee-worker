@@ -160,7 +160,7 @@ $(Enclave_EDL_Files): $(SGX_EDGER8R) enclave-runtime/Enclave.edl
 
 ######## Integritee-service objects ########
 service/Enclave_u.o: $(Enclave_EDL_Files)
-	@$(CC) $(Worker_C_Flags) -c service/Enclave_u.c -o $@
+	@$(CC) $(Worker_C_Flags) -c service/Enclave_u.c -o $@ -lsgx_urts_sim
 	@echo "CC   <=  $<"
 
 $(Worker_Enclave_u_Object): service/Enclave_u.o

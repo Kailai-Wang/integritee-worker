@@ -12,6 +12,9 @@ members = []
 name = "enclave_runtime"
 crate-type = ["staticlib"]
 
+[profile.release]
+debug = true
+
 [features]
 default = []
 production = ["itp-settings/production"]
