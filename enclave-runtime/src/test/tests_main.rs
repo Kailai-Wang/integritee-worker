@@ -600,6 +600,33 @@ fn test_shielding_call_with_enclave_self_is_executed() {
 	assert!(executed_batch.executed_operations[0].is_success());
 }
 
+pub fn test_retrieve_events() {
+	// given
+	let (_, mut state, shard, mrenclave, _, _) = test_setup();
+	let mut opaque_vec = Vec::new();
+	let sender = funded_pair();
+	let receiver = ed25519::Pair::from_seed(b"14565678901234567890123456789012");
+	let transfer_value: Balance = 1_000_000_000;
+
+	let trusted_call = TrustedCall::balance_transfer(
+		sender.public().into(),
+		receiver.public().into(),
+		transfer_value,
+	)
+	.sign(&sender.clone().into(), 0, &mrenclave, &shard);
+
+	// when
+	Stf::execute(&mut state, trusted_call, &mut opaque_vec).unwrap();
+
+	// then
+	let execution_adress = H160::from_slice(
+		&Vec::from_hex("0xce2c9e7f9c10049996173b2ca2d9a6815a70e890".to_string()).unwrap(),
+	);
+
+	assert!(state.execute_with(|| get_evm_account_codes(&execution_adress).is_some()));
+	assert!(state.execute_with(|| get_evm_account_codes(&sender_evm_acc).is_none()));
+}
+
 fn execute_trusted_calls(
 	shard: &ShardIdentifier,
 	stf_executor: &TestStfExecutor,
