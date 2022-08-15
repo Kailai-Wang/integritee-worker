@@ -53,6 +53,7 @@ use its_sidechain::{
 	block_composer::{BlockComposer, ComposeBlock},
 	state::{SidechainDB, SidechainState, SidechainSystemExt},
 };
+use log::*;
 use sgx_tunittest::*;
 use sgx_types::size_t;
 use sidechain_primitives::{
@@ -100,6 +101,8 @@ pub extern "C" fn test_main_entrance() -> size_t {
 		test_signature_must_match_public_sender_in_call,
 		test_non_root_shielding_call_is_not_executed,
 		test_shielding_call_with_enclave_self_is_executed,
+		test_retrieve_events,
+		test_retrieve_event_count,
 		rpc::worker_api_direct::tests::test_given_io_handler_methods_then_retrieve_all_names_as_string,
 		handle_state_mock::tests::initialized_shards_list_is_empty,
 		handle_state_mock::tests::shard_exists_after_inserting,
@@ -605,8 +608,10 @@ pub fn test_retrieve_events() {
 	let (_, mut state, shard, mrenclave, _, _) = test_setup();
 	let mut opaque_vec = Vec::new();
 	let sender = funded_pair();
-	let receiver = ed25519::Pair::from_seed(b"14565678901234567890123456789012");
-	let transfer_value: Balance = 1_000_000_000;
+	let receiver = unendowed_account();
+	let transfer_value: u128 = 1_000;
+	// Events will only get executed after genesis.
+	state.execute_with(|| set_block_number(100));
 
 	let trusted_call = TrustedCall::balance_transfer(
 		sender.public().into(),
@@ -616,15 +621,48 @@ pub fn test_retrieve_events() {
 	.sign(&sender.clone().into(), 0, &mrenclave, &shard);
 
 	// when
-	Stf::execute(&mut state, trusted_call, &mut opaque_vec).unwrap();
+	Stf::execute(&mut state, trusted_call, &mut opaque_vec, [0u8, 1u8]).unwrap();
 
 	// then
-	let execution_adress = H160::from_slice(
-		&Vec::from_hex("0xce2c9e7f9c10049996173b2ca2d9a6815a70e890".to_string()).unwrap(),
-	);
+	let receiver_acc_info =
+		state.execute_with(|| get_account_info(&receiver.public().into()).unwrap());
+	assert_eq!(receiver_acc_info.data.free, transfer_value);
 
-	assert!(state.execute_with(|| get_evm_account_codes(&execution_adress).is_some()));
-	assert!(state.execute_with(|| get_evm_account_codes(&sender_evm_acc).is_none()));
+	assert!(state.execute_with(|| get_events().len() > 0));
+}
+
+pub fn test_retrieve_event_count() {
+	// given
+	let (_, mut state, shard, mrenclave, _, _) = test_setup();
+	let mut opaque_vec = Vec::new();
+	let sender = funded_pair();
+	let receiver = unendowed_account();
+	let transfer_value: u128 = 1_000;
+	// Events will only get executed after genesis.
+	state.execute_with(|| set_block_number(100));
+	state.execute_with(|| set_events(vec![]));
+
+	let trusted_call = TrustedCall::balance_transfer(
+		sender.public().into(),
+		receiver.public().into(),
+		transfer_value,
+	)
+	.sign(&sender.clone().into(), 0, &mrenclave, &shard);
+
+	// when
+	Stf::execute(&mut state, trusted_call, &mut opaque_vec, [0u8, 1u8]).unwrap();
+
+	// then
+	let receiver_acc_info =
+		state.execute_with(|| get_account_info(&receiver.public().into()).unwrap());
+	assert_eq!(receiver_acc_info.data.free, transfer_value);
+
+	let event_count = state.execute_with(|| get_event_count().unwrap());
+	error!("EventCount: {:?}", event_count);
+	assert_eq!(event_count, 3);
+
+	let events = state.execute_with(|| get_events());
+	error!("Events: {:?}", events);
 }
 
 fn execute_trusted_calls(

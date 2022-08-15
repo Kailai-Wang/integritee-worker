@@ -16,6 +16,8 @@
 */
 use crate::{AccountId, StfError, StfResult, ENCLAVE_ACCOUNT_KEY};
 use codec::{Decode, Encode};
+#[cfg(all(not(feature = "std"), feature = "sgx"))]
+use ita_sgx_runtime::System;
 use itp_storage::{storage_double_map_key, storage_map_key, storage_value_key, StorageHasher};
 use itp_utils::stringify::account_id_to_string;
 use log::*;
