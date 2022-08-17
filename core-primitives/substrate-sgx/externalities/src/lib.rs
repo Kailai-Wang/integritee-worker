@@ -21,10 +21,10 @@ compile_error!("feature \"std\" and feature \"sgx\" cannot be enabled at the sam
 #[cfg(feature = "sgx")]
 extern crate sgx_tstd as std;
 
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, EncodeAppend};
 use derive_more::{Deref, DerefMut, From};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, vec::Vec};
+use std::{collections::BTreeMap, vec, vec::Vec};
 
 pub use scope_limited::{set_and_run_with_externalities, with_externalities};
 
@@ -59,6 +59,7 @@ pub trait SgxExternalitiesTrait {
 	fn state(&self) -> &SgxExternalitiesType;
 	fn state_diff(&self) -> &SgxExternalitiesDiffType;
 	fn insert(&mut self, k: Vec<u8>, v: Vec<u8>) -> Option<Vec<u8>>;
+	fn append(&mut self, k: Vec<u8>, v: Vec<u8>);
 	fn remove(&mut self, k: &[u8]) -> Option<Vec<u8>>;
 	fn get(&self, k: &[u8]) -> Option<&Vec<u8>>;
 	fn contains_key(&self, k: &[u8]) -> bool;
@@ -84,6 +85,13 @@ impl SgxExternalitiesTrait for SgxExternalities {
 	fn insert(&mut self, k: Vec<u8>, v: Vec<u8>) -> Option<Vec<u8>> {
 		self.state_diff.insert(k.clone(), Some(v.clone()));
 		self.state.insert(k, v)
+	}
+
+	/// Append a value to an existing key
+	fn append(&mut self, k: Vec<u8>, v: Vec<u8>) {
+		let current = self.state.entry(k.clone()).or_default();
+		let updated_value = StorageAppend::new(current).append(v);
+		self.state_diff.insert(k, Some(updated_value));
 	}
 
 	/// remove key
@@ -139,6 +147,44 @@ impl MultiRemovalResults {
 	}
 }
 
+/// Auxialiary structure for appending a value to a storage item.
+/// Taken from https://github.com/paritytech/substrate/blob/master/primitives/state-machine/src/ext.rs
+pub(crate) struct StorageAppend<'a>(&'a mut Vec<u8>);
+
+impl<'a> StorageAppend<'a> {
+	/// Create a new instance using the given `storage` reference.
+	pub fn new(storage: &'a mut Vec<u8>) -> Self {
+		Self(storage)
+	}
+
+	/// Append the given `value` to the storage item.
+	///
+	/// If appending fails, `[value]` is stored in the storage item.
+	pub fn append(&mut self, value: Vec<u8>) -> Vec<u8> {
+		let value = vec![EncodeOpaqueValue(value)];
+
+		let item = core::mem::take(self.0);
+
+		*self.0 = match Vec::<EncodeOpaqueValue>::append_or_new(item, &value) {
+			Ok(item) => item,
+			Err(_) => {
+				log::error!("Failed to append value, resetting storage item to input value.");
+				value.encode()
+			},
+		};
+		(*self.0).to_vec()
+	}
+}
+
+/// Implement `Encode` by forwarding the stored raw vec.
+struct EncodeOpaqueValue(Vec<u8>);
+
+impl Encode for EncodeOpaqueValue {
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+		f(&self.0)
+	}
+}
+
 #[cfg(test)]
 pub mod tests {
 
@@ -166,6 +212,27 @@ pub mod tests {
 	fn basic_externalities_is_empty() {
 		let ext = SgxExternalities::default();
 		assert!(ext.state.0.is_empty());
+	}
+
+	#[test]
+	fn storage_append_works() {
+		let mut data = Vec::new();
+		let mut append = StorageAppend::new(&mut data);
+		append.append(1u32.encode());
+		let updated_data = append.append(2u32.encode());
+		drop(append);
+
+		assert_eq!(Vec::<u32>::decode(&mut &data[..]).unwrap(), vec![1, 2]);
+		assert_eq!(updated_data, data);
+
+		// Initialize with some invalid data
+		let mut data = vec![1];
+		let mut append = StorageAppend::new(&mut data);
+		append.append(1u32.encode());
+		append.append(2u32.encode());
+		drop(append);
+
+		assert_eq!(Vec::<u32>::decode(&mut &data[..]).unwrap(), vec![1, 2]);
 	}
 
 	#[test]

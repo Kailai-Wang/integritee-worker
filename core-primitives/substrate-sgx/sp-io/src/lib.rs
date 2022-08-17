@@ -222,7 +222,7 @@ pub mod storage {
 	/// If the storage item does not support [`EncodeAppend`](codec::EncodeAppend) or
 	/// something else fails at appending, the storage item will be set to `[value]`.
 	pub fn append(key: &[u8], value: Vec<u8>) {
-		warn!("storage::append() unimplemented");
+		with_externalities(|ext| ext.append(key.to_vec(), value.to_vec()));
 	}
 
 	/// "Commit" all existing operations and compute the resulting storage root.
