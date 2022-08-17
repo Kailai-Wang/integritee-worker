@@ -19,31 +19,35 @@
 //! including the verification of the retrieved quote.
 
 use crate::{
-	cert, io, ocall::OcallApi, utils::hash_from_slice, Error as EnclaveError,
-	ParentchainExtrinsicParams, ParentchainExtrinsicParamsBuilder, Result as EnclaveResult,
-	GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT,
+	cert,
+	global_components::{
+		GLOBAL_EXTRINSICS_FACTORY_COMPONENT, GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT,
+	},
+	io, Error as EnclaveError, ParentchainExtrinsicParamsBuilder, Result as EnclaveResult,
+	GLOBAL_OCALL_API_COMPONENT,
 };
 use codec::Encode;
 use core::{convert::TryInto, default::Default};
 use itertools::Itertools;
 use itp_component_container::ComponentGetter;
+use itp_extrinsics_factory::CreateExtrinsics;
 use itp_node_api::metadata::{pallet_teerex::TeerexCallIndexes, provider::AccessNodeMetadata};
 use itp_ocall_api::EnclaveAttestationOCallApi;
 use itp_settings::files::RA_DUMP_CERT_DER_FILE;
 use itp_sgx_crypto::Ed25519Seal;
 use itp_sgx_io::StaticSealedIO;
 use itp_time_utils::now_as_secs;
+use itp_types::OpaqueCall;
 use itp_utils::write_slice_and_whitespace_pad;
 use log::*;
-use primitive_types::H256;
 use sgx_tcrypto::*;
 use sgx_tse::rsgx_create_report;
 use sgx_types::*;
 use sp_core::{blake2_256, Pair};
+use sp_runtime::OpaqueExtrinsic;
 use std::{prelude::v1::*, slice, str, vec::Vec};
-use substrate_api_client::{compose_extrinsic_offline, ExtrinsicParams};
 
-pub fn ecdsa_quote_verification<A: EnclaveAttestationOCallApi>(
+fn ecdsa_quote_verification<A: EnclaveAttestationOCallApi>(
 	quote: Vec<u8>,
 	ocall_api: &A,
 ) -> SgxResult<Vec<u8>> {
@@ -134,7 +138,7 @@ pub fn ecdsa_quote_verification<A: EnclaveAttestationOCallApi>(
 	Ok(vec![])
 }
 
-pub fn retrieve_qe_dcap_quote<A: EnclaveAttestationOCallApi>(
+fn retrieve_qe_dcap_quote<A: EnclaveAttestationOCallApi>(
 	pub_k: &[u8; 32],
 	ocall_api: &A,
 	quoting_enclave_target_info: &sgx_target_info_t,
@@ -181,7 +185,7 @@ pub fn retrieve_qe_dcap_quote<A: EnclaveAttestationOCallApi>(
 	Ok(quote_vec)
 }
 
-pub fn generate_dcap_ecc_cert<A: EnclaveAttestationOCallApi>(
+fn generate_dcap_ecc_cert<A: EnclaveAttestationOCallApi>(
 	quoting_enclave_target_info: &sgx_target_info_t,
 	quote_size: u32,
 	ocall_api: &A,
@@ -233,50 +237,33 @@ pub fn generate_dcap_ecc_cert<A: EnclaveAttestationOCallApi>(
 	Ok((key_der, cert_der))
 }
 
-fn compose_remote_attestation_extrinsic(
-	genesis_hash: H256,
-	nonce: u32,
+pub(crate) fn compose_remote_attestation_extrinsic(
 	url_slice: &[u8],
 	cert_der: &[u8],
-) -> EnclaveResult<Vec<u8>> {
-	let signer = Ed25519Seal::unseal_from_static_file()?;
+) -> EnclaveResult<OpaqueExtrinsic> {
+	let extrinsics_factory = GLOBAL_EXTRINSICS_FACTORY_COMPONENT.get()?;
 	let node_metadata_repository = GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT.get()?;
 
-	let (register_enclave_call, runtime_spec_version, runtime_transaction_version) =
-		node_metadata_repository
-			.get_from_metadata(|m| {
-				(
-					m.register_enclave_call_indexes(),
-					m.get_runtime_version(),
-					m.get_runtime_transaction_version(),
-				)
-			})
-			.map_err(|e| EnclaveError::Other(Box::new(e)))?;
+	let register_enclave_call = node_metadata_repository
+		.get_from_metadata(|m| m.register_enclave_call_indexes())
+		.map_err(|e| EnclaveError::Other(Box::new(e)))??;
 
-	let call = register_enclave_call?;
+	let opaque_call =
+		OpaqueCall::from_tuple(&(register_enclave_call, cert_der.to_vec(), url_slice.to_vec()));
 
-	let extrinsic_params = ParentchainExtrinsicParams::new(
-		runtime_spec_version,
-		runtime_transaction_version,
-		nonce,
-		genesis_hash,
-		ParentchainExtrinsicParamsBuilder::default(),
-	);
-
-	let extrinsic = compose_extrinsic_offline!(
-		signer,
-		(call, cert_der.to_vec(), url_slice.to_vec()),
-		extrinsic_params
-	);
-
-	Ok(extrinsic.encode())
+	extrinsics_factory
+		.create_extrinsics(&[opaque_call], Some(ParentchainExtrinsicParamsBuilder::default()))?
+		.into_iter()
+		.last()
+		.ok_or_else(|| {
+			EnclaveError::Other(
+				"Expected one extrinsic from factory, but found none".to_string().into(),
+			)
+		})
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn perform_dcap_ra(
-	genesis_hash: *const u8,
-	genesis_hash_size: u32,
-	nonce: *const u32,
 	w_url: *const u8,
 	w_url_size: u32,
 	unchecked_extrinsic: *mut u8,
@@ -284,30 +271,37 @@ pub unsafe extern "C" fn perform_dcap_ra(
 	quoting_enclave_target_info: &sgx_target_info_t,
 	quote_size: *const u32,
 ) -> sgx_status_t {
+	let ocall_api = match GLOBAL_OCALL_API_COMPONENT.get() {
+		Ok(r) => r,
+		Err(e) => {
+			error!("Component get failure: {:?}", e);
+			return sgx_status_t::SGX_ERROR_UNEXPECTED
+		},
+	};
+
 	// Extract values from Ecall
-	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
 	let url_slice = slice::from_raw_parts(w_url, w_url_size as usize);
 	let extrinsic_slice =
 		slice::from_raw_parts_mut(unchecked_extrinsic, unchecked_extrinsic_size as usize);
-	let genesis_hash = hash_from_slice(genesis_hash_slice);
 
-	debug!("decoded nonce: {}", *nonce);
-	debug!("decoded genesis_hash: {:?}", genesis_hash_slice);
 	debug!("worker url: {}", str::from_utf8(url_slice).unwrap());
 
 	// Generate the ecc certificate which includes the quote and report of the qe and our app enclave.
-	let (_key_der, cert_der) =
-		match generate_dcap_ecc_cert(quoting_enclave_target_info, *quote_size, &OcallApi, false) {
-			Ok(r) => r,
-			Err(e) => return e.into(),
-		};
+	let (_key_der, cert_der) = match generate_dcap_ecc_cert(
+		quoting_enclave_target_info,
+		*quote_size,
+		ocall_api.as_ref(),
+		false,
+	) {
+		Ok(r) => r,
+		Err(e) => return e.into(),
+	};
 
 	// Compose the extrinsic containing the certificate
-	let encoded_extrinsic =
-		match compose_remote_attestation_extrinsic(genesis_hash, *nonce, url_slice, &cert_der) {
-			Ok(xt) => xt,
-			Err(e) => return e.into(),
-		};
+	let encoded_extrinsic = match compose_remote_attestation_extrinsic(url_slice, &cert_der) {
+		Ok(xt) => xt.encode(),
+		Err(e) => return e.into(),
+	};
 
 	let extrinsic_hash = blake2_256(&encoded_extrinsic);
 	info!("Created ra extrinsic (len = {} B), hash: {:?}", encoded_extrinsic.len(), extrinsic_hash);
@@ -324,11 +318,23 @@ pub unsafe extern "C" fn dump_dcap_ra_to_disk(
 	quoting_enclave_target_info: &sgx_target_info_t,
 	quote_size: *const u32,
 ) -> sgx_status_t {
-	let (_key_der, cert_der) =
-		match generate_dcap_ecc_cert(quoting_enclave_target_info, *quote_size, &OcallApi, false) {
-			Ok(r) => r,
-			Err(e) => return e.into(),
-		};
+	let ocall_api = match GLOBAL_OCALL_API_COMPONENT.get() {
+		Ok(r) => r,
+		Err(e) => {
+			error!("Component get failure: {:?}", e);
+			return sgx_status_t::SGX_ERROR_UNEXPECTED
+		},
+	};
+
+	let (_key_der, cert_der) = match generate_dcap_ecc_cert(
+		quoting_enclave_target_info,
+		*quote_size,
+		ocall_api.as_ref(),
+		false,
+	) {
+		Ok(r) => r,
+		Err(e) => return e.into(),
+	};
 
 	if let Err(err) = io::write(&cert_der, RA_DUMP_CERT_DER_FILE) {
 		error!("[Enclave] failed to write RA file ({}), status: {:?}", RA_DUMP_CERT_DER_FILE, err);

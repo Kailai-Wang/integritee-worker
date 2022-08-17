@@ -325,7 +325,6 @@ fn start_worker<E, T, D, InitializationHandler, WorkerModeProvider>(
 
 	// ------------------------------------------------------------------------
 	// Get the public key of our TEE.
-	let genesis_hash = node_api.genesis_hash.as_bytes().to_vec();
 	let tee_accountid = enclave_account(enclave.as_ref());
 	println!("Enclave account {:} ", &tee_accountid.to_ss58check());
 
@@ -396,8 +395,8 @@ fn start_worker<E, T, D, InitializationHandler, WorkerModeProvider>(
 	let nonce = node_api.get_nonce_of(&tee_accountid).unwrap();
 	info!("Enclave nonce = {:?}", nonce);
 	enclave
-		.set_nonce(nonce)
-		.expect("Could not set nonce of enclave. Returning here...");
+		.init_extrinsics_factory(nonce, node_api.genesis_hash)
+		.expect("Failed to initialize extrinsics factory");
 
 	let metadata = node_api.metadata.clone();
 	let runtime_spec_version = node_api.runtime_version.spec_version;
@@ -413,11 +412,9 @@ fn start_worker<E, T, D, InitializationHandler, WorkerModeProvider>(
 		println!(
 			"[!] skipping remote attestation. Registering enclave without attestation report."
 		);
-		enclave.mock_register_xt(node_api.genesis_hash, nonce, &trusted_url).unwrap()
+		enclave.mock_register_xt(&trusted_url).unwrap()
 	} else {
-		enclave
-			.perform_dcap_ra(genesis_hash, nonce, trusted_url.as_bytes().to_vec())
-			.unwrap()
+		enclave.perform_dcap_ra(trusted_url.as_bytes().to_vec()).unwrap()
 	};
 
 	let mut xthex = hex::encode(uxt);

@@ -73,7 +73,7 @@ where
 				return until_synced_header
 			}
 
-			if let Err(e) = self.enclave_api.sync_parentchain(block_chunk_to_sync.as_slice(), 0) {
+			if let Err(e) = self.enclave_api.sync_parentchain(block_chunk_to_sync.as_slice()) {
 				error!("{:?}", e);
 				// enclave might not have synced
 				return until_synced_header

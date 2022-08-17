@@ -33,10 +33,10 @@ use crate::{
 	error::{Error, Result},
 	global_components::{
 		GLOBAL_IMMEDIATE_PARENTCHAIN_IMPORT_DISPATCHER_COMPONENT,
-		GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT, GLOBAL_SIDECHAIN_IMPORT_QUEUE_COMPONENT,
-		GLOBAL_STATE_HANDLER_COMPONENT, GLOBAL_TRIGGERED_PARENTCHAIN_IMPORT_DISPATCHER_COMPONENT,
+		GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT, GLOBAL_OCALL_API_COMPONENT,
+		GLOBAL_SIDECHAIN_IMPORT_QUEUE_COMPONENT, GLOBAL_STATE_HANDLER_COMPONENT,
+		GLOBAL_TRIGGERED_PARENTCHAIN_IMPORT_DISPATCHER_COMPONENT,
 	},
-	ocall::OcallApi,
 	rpc::worker_api_direct::sidechain_io_handler,
 	utils::{hash_from_slice, utf8_str_from_raw, DecodeRaw},
 };
@@ -50,25 +50,19 @@ use itc_parentchain::{
 };
 use itp_block_import_queue::PushToBlockQueue;
 use itp_component_container::ComponentGetter;
-use itp_node_api::metadata::{
-	pallet_teerex::TeerexCallIndexes, provider::AccessNodeMetadata, NodeMetadata,
-};
-use itp_nonce_cache::{MutateNonce, Nonce, GLOBAL_NONCE_CACHE};
+use itp_node_api::metadata::NodeMetadata;
 use itp_ocall_api::EnclaveAttestationOCallApi;
 use itp_settings::worker_mode::{ProvideWorkerMode, WorkerMode, WorkerModeProvider};
 use itp_sgx_crypto::{ed25519, Ed25519Seal, Rsa3072Seal};
 use itp_sgx_io as io;
 use itp_sgx_io::StaticSealedIO;
 use itp_stf_state_handler::handle_state::HandleState;
-use itp_types::{
-	Header, ParentchainExtrinsicParams, ParentchainExtrinsicParamsBuilder, SignedBlock,
-};
+use itp_types::{Header, ParentchainExtrinsicParamsBuilder, SignedBlock};
 use itp_utils::write_slice_and_whitespace_pad;
 use log::*;
 use sgx_types::sgx_status_t;
 use sp_core::crypto::Pair;
 use std::{boxed::Box, slice, vec::Vec};
-use substrate_api_client::{compose_extrinsic_offline, ExtrinsicParams};
 
 mod attestation;
 mod dcap_attestation;
@@ -177,18 +171,18 @@ pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u3
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn set_nonce(nonce: *const u32) -> sgx_status_t {
-	log::info!("[Ecall Set Nonce] Setting the nonce of the enclave to: {}", *nonce);
+pub unsafe extern "C" fn init_extrinsics_factory(
+	nonce: u32,
+	genesis_hash: *const u8,
+	genesis_hash_size: u32,
+) -> sgx_status_t {
+	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
+	let genesis_hash = hash_from_slice(genesis_hash_slice);
 
-	let mut nonce_lock = match GLOBAL_NONCE_CACHE.load_for_mutation() {
-		Ok(l) => l,
-		Err(e) => {
-			error!("Failed to set nonce in enclave: {:?}", e);
-			return sgx_status_t::SGX_ERROR_UNEXPECTED
-		},
-	};
-
-	*nonce_lock = Nonce(*nonce);
+	if let Err(e) = initialization::init_extrinsics_factory(nonce, genesis_hash) {
+		error!("Failed to initialize extrinsics factory: {:?}", e);
+		return sgx_status_t::SGX_ERROR_UNEXPECTED
+	}
 
 	sgx_status_t::SGX_SUCCESS
 }
@@ -223,29 +217,18 @@ pub unsafe extern "C" fn set_node_metadata(
 
 #[no_mangle]
 pub unsafe extern "C" fn mock_register_enclave_xt(
-	genesis_hash: *const u8,
-	genesis_hash_size: u32,
-	_nonce: *const u32,
 	w_url: *const u8,
 	w_url_size: u32,
 	unchecked_extrinsic: *mut u8,
 	unchecked_extrinsic_size: u32,
 ) -> sgx_status_t {
-	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
-	let genesis_hash = hash_from_slice(genesis_hash_slice);
+	use crate::dcap_attestation::compose_remote_attestation_extrinsic;
 
-	let mut url_slice = slice::from_raw_parts(w_url, w_url_size as usize);
-	let url: String = Decode::decode(&mut url_slice).unwrap();
+	let url_slice = slice::from_raw_parts(w_url, w_url_size as usize);
 	let extrinsic_slice =
 		slice::from_raw_parts_mut(unchecked_extrinsic, unchecked_extrinsic_size as usize);
 
-	let mre = OcallApi
-		.get_mrenclave_of_self()
-		.map_or_else(|_| Vec::<u8>::new(), |m| m.m.encode());
-
-	let signer = Ed25519Seal::unseal_from_static_file().unwrap();
-
-	let node_metadata_repository = match GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT.get() {
+	let ocall_api = match GLOBAL_OCALL_API_COMPONENT.get() {
 		Ok(r) => r,
 		Err(e) => {
 			error!("Component get failure: {:?}", e);
@@ -253,49 +236,19 @@ pub unsafe extern "C" fn mock_register_enclave_xt(
 		},
 	};
 
-	let (register_enclave_call, runtime_spec_version, runtime_transaction_version) =
-		match node_metadata_repository.get_from_metadata(|m| {
-			(
-				m.register_enclave_call_indexes(),
-				m.get_runtime_version(),
-				m.get_runtime_transaction_version(),
-			)
-		}) {
-			Ok(r) => r,
-			Err(e) => {
-				error!("Failed to get node metadata: {:?}", e);
-				return sgx_status_t::SGX_ERROR_UNEXPECTED
-			},
-		};
+	let mr_enclave = ocall_api
+		.get_mrenclave_of_self()
+		.map_or_else(|_| Vec::<u8>::new(), |m| m.m.encode());
 
-	let call_ids =
-		match register_enclave_call {
-			Ok(c) => c,
-			Err(e) => {
-				error!("Failed to get the indexes for the register_enclave cal from the metadata: {:?}", e);
-				return sgx_status_t::SGX_ERROR_UNEXPECTED
-			},
-		};
+	let extrinsic = match compose_remote_attestation_extrinsic(url_slice, &mr_enclave) {
+		Ok(e) => e.encode(),
+		Err(e) => {
+			error!("Failed to compose (mock) extrinsic for registering enclave: {:?}", e);
+			return sgx_status_t::SGX_ERROR_UNEXPECTED
+		},
+	};
 
-	let call = (call_ids, mre, url);
-
-	let nonce_cache = GLOBAL_NONCE_CACHE.clone();
-	let mut nonce_lock = nonce_cache.load_for_mutation().expect("Nonce lock poisoning");
-	let nonce_value = nonce_lock.0;
-
-	let extrinsic_params = ParentchainExtrinsicParams::new(
-		runtime_spec_version,
-		runtime_transaction_version,
-		nonce_value,
-		genesis_hash,
-		ParentchainExtrinsicParamsBuilder::default(),
-	);
-	let xt = compose_extrinsic_offline!(signer, call, extrinsic_params).encode();
-
-	*nonce_lock = Nonce(nonce_value + 1);
-	std::mem::drop(nonce_lock);
-
-	if let Err(e) = write_slice_and_whitespace_pad(extrinsic_slice, xt) {
+	if let Err(e) = write_slice_and_whitespace_pad(extrinsic_slice, extrinsic) {
 		return Error::Other(Box::new(e)).into()
 	};
 	sgx_status_t::SGX_SUCCESS
@@ -488,7 +441,6 @@ pub unsafe extern "C" fn init_shard(shard: *const u8, shard_size: u32) -> sgx_st
 pub unsafe extern "C" fn sync_parentchain(
 	blocks_to_sync: *const u8,
 	blocks_to_sync_size: usize,
-	_nonce: *const u32,
 ) -> sgx_status_t {
 	let blocks_to_sync = match Vec::<SignedBlock>::decode_raw(blocks_to_sync, blocks_to_sync_size) {
 		Ok(blocks) => blocks,

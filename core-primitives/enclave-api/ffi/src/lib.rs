@@ -69,13 +69,14 @@ extern "C" {
 		retval: *mut sgx_status_t,
 		blocks: *const u8,
 		blocks_size: usize,
-		nonce: *const u32,
 	) -> sgx_status_t;
 
-	pub fn set_nonce(
+	pub fn init_extrinsics_factory(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
-		nonce: *const u32,
+		nonce: u32,
+		genesis_hash: *const u8,
+		genesis_hash_size: u32,
 	) -> sgx_status_t;
 
 	pub fn set_node_metadata(
@@ -109,9 +110,6 @@ extern "C" {
 	pub fn perform_ra(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
-		genesis_hash: *const u8,
-		genesis_hash_size: u32,
-		nonce: *const u32,
 		w_url: *const u8,
 		w_url_size: u32,
 		unchecked_extrinsic: *mut u8,
@@ -121,9 +119,6 @@ extern "C" {
 	pub fn perform_dcap_ra(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
-		genesis_hash: *const u8,
-		genesis_hash_size: u32,
-		nonce: *const u32,
 		w_url: *const u8,
 		w_url_size: u32,
 		unchecked_extrinsic: *mut u8,
@@ -155,9 +150,6 @@ extern "C" {
 	pub fn mock_register_enclave_xt(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
-		genesis_hash: *const u8,
-		genesis_hash_size: u32,
-		nonce: *const u32,
 		w_url: *const u8,
 		w_url_size: u32,
 		unchecked_extrinsic: *mut u8,

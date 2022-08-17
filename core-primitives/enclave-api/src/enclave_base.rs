@@ -24,6 +24,7 @@ use itp_enclave_api_ffi as ffi;
 use itp_settings::worker::{
 	HEADER_MAX_SIZE, MR_ENCLAVE_SIZE, SHIELDING_KEY_SIZE, SIGNING_KEY_SIZE, STATE_VALUE_MAX_SIZE,
 };
+use itp_types::H256;
 use log::*;
 use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
 use sgx_types::*;
@@ -54,7 +55,7 @@ pub trait EnclaveBase: Send + Sync + 'static {
 	/// with a triggered import dispatcher.
 	fn trigger_parentchain_block_import(&self) -> EnclaveResult<()>;
 
-	fn set_nonce(&self, nonce: u32) -> EnclaveResult<()>;
+	fn init_extrinsics_factory(&self, nonce: u32, genesis_hash: H256) -> EnclaveResult<()>;
 
 	fn set_node_metadata(&self, metadata: Vec<u8>) -> EnclaveResult<()>;
 
@@ -159,10 +160,20 @@ impl EnclaveBase for Enclave {
 		Ok(())
 	}
 
-	fn set_nonce(&self, nonce: u32) -> EnclaveResult<()> {
+	fn init_extrinsics_factory(&self, nonce: u32, genesis_hash: H256) -> EnclaveResult<()> {
 		let mut retval = sgx_status_t::SGX_SUCCESS;
 
-		let result = unsafe { ffi::set_nonce(self.eid, &mut retval, &nonce) };
+		let genesis_hash_encoded = genesis_hash.as_bytes().to_vec();
+
+		let result = unsafe {
+			ffi::init_extrinsics_factory(
+				self.eid,
+				&mut retval,
+				nonce,
+				genesis_hash_encoded.as_ptr(),
+				genesis_hash_encoded.len() as u32,
+			)
+		};
 
 		ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
 		ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));

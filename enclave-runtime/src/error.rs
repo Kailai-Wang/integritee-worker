@@ -32,6 +32,7 @@ pub enum Error {
 	IO(std::io::Error),
 	LightClient(itc_parentchain::light_client::error::Error),
 	NodeMetadataProvider(itp_node_api::metadata::provider::Error),
+	NonceCache(itp_nonce_cache::error::Error),
 	Sgx(sgx_status_t),
 	Consensus(its_sidechain::consensus_common::Error),
 	Stf(String),

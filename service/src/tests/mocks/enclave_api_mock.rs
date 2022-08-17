@@ -21,6 +21,7 @@ use itc_parentchain_light_client::light_client_init_params::{
 };
 use itp_enclave_api::{enclave_base::EnclaveBase, EnclaveResult};
 use itp_settings::worker::MR_ENCLAVE_SIZE;
+use primitive_types::H256;
 use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
 use sp_core::ed25519;
 use sp_runtime::traits::Header;
@@ -59,7 +60,7 @@ impl EnclaveBase for EnclaveBaseMock {
 		unimplemented!()
 	}
 
-	fn set_nonce(&self, _: u32) -> EnclaveResult<()> {
+	fn init_extrinsics_factory(&self, nonce: u32, genesis_hash: H256) -> EnclaveResult<()> {
 		unimplemented!()
 	}
 

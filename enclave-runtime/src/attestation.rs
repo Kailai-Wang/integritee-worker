@@ -27,19 +27,16 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use crate::{
-	cert, io, ocall::OcallApi, utils::hash_from_slice, Error as EnclaveError,
-	Result as EnclaveResult, GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT,
+	cert, dcap_attestation::compose_remote_attestation_extrinsic, io, ocall::OcallApi,
+	Error as EnclaveError, Result as EnclaveResult,
 };
 use codec::Encode;
 use core::default::Default;
 use itertools::Itertools;
-use itp_component_container::ComponentGetter;
-use itp_node_api::metadata::{pallet_teerex::TeerexCallIndexes, provider::AccessNodeMetadata};
 use itp_ocall_api::EnclaveAttestationOCallApi;
 use itp_settings::files::{RA_API_KEY_FILE, RA_DUMP_CERT_DER_FILE, RA_SPID_FILE};
 use itp_sgx_crypto::Ed25519Seal;
 use itp_sgx_io::StaticSealedIO;
-use itp_types::{ParentchainExtrinsicParams, ParentchainExtrinsicParamsBuilder};
 use itp_utils::write_slice_and_whitespace_pad;
 use log::*;
 use sgx_rand::*;
@@ -56,7 +53,6 @@ use std::{
 	sync::Arc,
 	vec::Vec,
 };
-use substrate_api_client::{compose_extrinsic_offline, ExtrinsicParams};
 
 pub const DEV_HOSTNAME: &str = "api.trustedservices.intel.com";
 
@@ -497,9 +493,6 @@ pub fn create_ra_report_and_signature<A: EnclaveAttestationOCallApi>(
 
 #[no_mangle]
 pub unsafe extern "C" fn perform_ra(
-	genesis_hash: *const u8,
-	genesis_hash_size: u32,
-	nonce: *const u32,
 	w_url: *const u8,
 	w_url_size: u32,
 	unchecked_extrinsic: *mut u8,
@@ -514,69 +507,19 @@ pub unsafe extern "C" fn perform_ra(
 	};
 
 	info!("    [Enclave] Compose extrinsic");
-	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
-	//let mut nonce_slice     = slice::from_raw_parts(nonce, nonce_size as usize);
 	let url_slice = slice::from_raw_parts(w_url, w_url_size as usize);
 	let extrinsic_slice =
 		slice::from_raw_parts_mut(unchecked_extrinsic, unchecked_extrinsic_size as usize);
-	let signer = match Ed25519Seal::unseal_from_static_file() {
-		Ok(pair) => pair,
-		Err(e) => return e.into(),
-	};
-	info!("[Enclave] Restored ECC pubkey: {:?}", signer.public());
 
-	debug!("decoded nonce: {}", *nonce);
-	let genesis_hash = hash_from_slice(genesis_hash_slice);
-	debug!("decoded genesis_hash: {:?}", genesis_hash_slice);
 	debug!("worker url: {}", str::from_utf8(url_slice).unwrap());
 
-	let node_metadata_repository = match GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT.get() {
-		Ok(r) => r,
+	let xt_encoded = match compose_remote_attestation_extrinsic(url_slice, &cert_der) {
+		Ok(r) => r.encode(),
 		Err(e) => {
-			error!("Component get failure: {:?}", e);
-			return sgx_status_t::SGX_ERROR_UNEXPECTED
+			error!("Failed to compose remote attestation extrinsic: {:?}", e);
+			return e.into()
 		},
 	};
-
-	let (register_enclave_call, runtime_spec_version, runtime_transaction_version) =
-		match node_metadata_repository.get_from_metadata(|m| {
-			(
-				m.register_enclave_call_indexes(),
-				m.get_runtime_version(),
-				m.get_runtime_transaction_version(),
-			)
-		}) {
-			Ok(r) => r,
-			Err(e) => {
-				error!("Failed to get node metadata: {:?}", e);
-				return sgx_status_t::SGX_ERROR_UNEXPECTED
-			},
-		};
-
-	let call =
-		match register_enclave_call {
-			Ok(c) => c,
-			Err(e) => {
-				error!("Failed to get the indexes for the register_enclave call from the metadata: {:?}", e);
-				return sgx_status_t::SGX_ERROR_UNEXPECTED
-			},
-		};
-
-	let extrinsic_params = ParentchainExtrinsicParams::new(
-		runtime_spec_version,
-		runtime_transaction_version,
-		*nonce,
-		genesis_hash,
-		ParentchainExtrinsicParamsBuilder::default(),
-	);
-
-	let xt = compose_extrinsic_offline!(
-		signer,
-		(call, cert_der.to_vec(), url_slice.to_vec()),
-		extrinsic_params
-	);
-
-	let xt_encoded = xt.encode();
 	let xt_hash = blake2_256(&xt_encoded);
 	debug!("    [Enclave] Encoded extrinsic ( len = {} B), hash {:?}", xt_encoded.len(), xt_hash);
 

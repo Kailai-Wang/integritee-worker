@@ -73,12 +73,12 @@ enclave {
         public sgx_status_t execute_trusted_calls();
 
         public sgx_status_t sync_parentchain(
-            [in, size=blocks_size] uint8_t* blocks, size_t blocks_size,
-            [in] uint32_t* nonce
+            [in, size=blocks_size] uint8_t* blocks, size_t blocks_size
         );
 
-        public sgx_status_t set_nonce(
-            [in] uint32_t* nonce
+        public sgx_status_t init_extrinsics_factory(
+            uint32_t nonce,
+            [in, size=genesis_hash_size] uint8_t* genesis_hash, uint32_t genesis_hash_size
         );
 
         public sgx_status_t set_node_metadata(
@@ -95,25 +95,18 @@ enclave {
 			[out, size=mrenclave_size] uint8_t* mrenclave, uint32_t mrenclave_size);
 
 		public sgx_status_t perform_ra(
-			[in, size=genesis_hash_size] uint8_t* genesis_hash, uint32_t genesis_hash_size,
-			[in] uint32_t* nonce,
 			[in, size=w_url_size] uint8_t* w_url, uint32_t w_url_size,
 			[out, size=unchecked_extrinsic_size] uint8_t* unchecked_extrinsic, uint32_t unchecked_extrinsic_size
 		);
 
 		public sgx_status_t perform_dcap_ra(
-			[in, size=genesis_hash_size] uint8_t* genesis_hash, uint32_t genesis_hash_size,
-			[in] uint32_t* nonce,
 			[in, size=w_url_size] uint8_t* w_url, uint32_t w_url_size,
 			[out, size=unchecked_extrinsic_size] uint8_t* unchecked_extrinsic, uint32_t unchecked_extrinsic_size,
 			[in] const sgx_target_info_t* quoting_enclave_target_info,
 			[in] uint32_t* quote_size
 		);
 
-
 		public sgx_status_t mock_register_enclave_xt(
-            [in, size=genesis_hash_size] uint8_t* genesis_hash, uint32_t genesis_hash_size,
-            [in] uint32_t* nonce,
             [in, size=w_url_size] uint8_t* w_url, uint32_t w_url_size,
             [out, size=unchecked_extrinsic_size] uint8_t* unchecked_extrinsic, uint32_t unchecked_extrinsic_size
 		);

@@ -53,10 +53,7 @@ use itc_parentchain::{
 	},
 	block_importer::ParentchainBlockImporter,
 	indirect_calls_executor::IndirectCallsExecutor,
-	light_client::{
-		concurrent_access::ValidatorAccess, light_client_init_params::LightClientInitParams,
-		LightClientState,
-	},
+	light_client::{light_client_init_params::LightClientInitParams, LightClientState},
 };
 use itc_tls_websocket_server::{
 	certificate_generation::ed25519_self_signed_certificate, create_ws_server, ConnectionToken,
@@ -66,7 +63,7 @@ use itp_block_import_queue::BlockImportQueue;
 use itp_component_container::{ComponentGetter, ComponentInitializer};
 use itp_extrinsics_factory::ExtrinsicsFactory;
 use itp_node_api::metadata::provider::NodeMetadataRepository;
-use itp_nonce_cache::GLOBAL_NONCE_CACHE;
+use itp_nonce_cache::{MutateNonce, Nonce, GLOBAL_NONCE_CACHE};
 use itp_primitives_cache::GLOBAL_PRIMITIVES_CACHE;
 use itp_settings::{
 	files::{
@@ -231,6 +228,28 @@ pub(crate) fn init_enclave_sidechain_components() -> EnclaveResult<()> {
 	Ok(())
 }
 
+pub(crate) fn init_extrinsics_factory(nonce: u32, genesis_hash: H256) -> EnclaveResult<()> {
+	info!("Setting the nonce of the enclave to: {}", nonce);
+
+	let mut nonce_lock = GLOBAL_NONCE_CACHE.load_for_mutation()?;
+	*nonce_lock = Nonce(nonce);
+	std::mem::drop(nonce_lock);
+
+	let signer = Ed25519Seal::unseal_from_static_file()?;
+	let node_metadata_repository = GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT.get()?;
+
+	let extrinsics_factory = Arc::new(ExtrinsicsFactory::new(
+		genesis_hash,
+		signer,
+		GLOBAL_NONCE_CACHE.clone(),
+		node_metadata_repository,
+	));
+
+	GLOBAL_EXTRINSICS_FACTORY_COMPONENT.initialize(extrinsics_factory);
+
+	Ok(())
+}
+
 pub(crate) fn init_light_client<WorkerModeProvider: ProvideWorkerMode>(
 	params: LightClientInitParams<Header>,
 ) -> EnclaveResult<Header> {
@@ -241,22 +260,8 @@ pub(crate) fn init_light_client<WorkerModeProvider: ProvideWorkerMode>(
 	let latest_header = validator.latest_finalized_header(validator.num_relays())?;
 
 	// Initialize the global parentchain block import dispatcher instance.
-	let signer = Ed25519Seal::unseal_from_static_file()?;
-	let node_metadata_repository = GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT.get()?;
-
 	let validator_access = Arc::new(EnclaveValidatorAccessor::new(validator));
-	GLOBAL_PARENTCHAIN_BLOCK_VALIDATOR_ACCESS_COMPONENT.initialize(validator_access.clone());
-
-	let genesis_hash = validator_access.execute_on_validator(|v| v.genesis_hash(v.num_relays()))?;
-
-	let extrinsics_factory = Arc::new(ExtrinsicsFactory::new(
-		genesis_hash,
-		signer,
-		GLOBAL_NONCE_CACHE.clone(),
-		node_metadata_repository,
-	));
-
-	GLOBAL_EXTRINSICS_FACTORY_COMPONENT.initialize(extrinsics_factory);
+	GLOBAL_PARENTCHAIN_BLOCK_VALIDATOR_ACCESS_COMPONENT.initialize(validator_access);
 
 	initialize_parentchain_import_dispatcher::<WorkerModeProvider>()?;
 

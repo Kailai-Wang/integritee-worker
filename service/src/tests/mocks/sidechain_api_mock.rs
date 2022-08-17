@@ -25,7 +25,6 @@ impl Sidechain for SidechainApiMock {
 	fn sync_parentchain<ParentchainBlock: ParentchainBlockTrait>(
 		&self,
 		_blocks: &[sp_runtime::generic::SignedBlock<ParentchainBlock>],
-		_nonce: u32,
 	) -> EnclaveResult<()> {
 		Ok(())
 	}

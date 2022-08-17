@@ -29,7 +29,6 @@ pub trait Sidechain: Send + Sync + 'static {
 	fn sync_parentchain<ParentchainBlock: ParentchainBlockTrait>(
 		&self,
 		blocks: &[SignedBlock<ParentchainBlock>],
-		nonce: u32,
 	) -> EnclaveResult<()>;
 
 	fn execute_trusted_getters(&self) -> EnclaveResult<()>;
@@ -41,19 +40,12 @@ impl Sidechain for Enclave {
 	fn sync_parentchain<ParentchainBlock: ParentchainBlockTrait>(
 		&self,
 		blocks: &[SignedBlock<ParentchainBlock>],
-		nonce: u32,
 	) -> EnclaveResult<()> {
 		let mut retval = sgx_status_t::SGX_SUCCESS;
 		let blocks_enc = blocks.encode();
 
 		let result = unsafe {
-			ffi::sync_parentchain(
-				self.eid,
-				&mut retval,
-				blocks_enc.as_ptr(),
-				blocks_enc.len(),
-				&nonce,
-			)
+			ffi::sync_parentchain(self.eid, &mut retval, blocks_enc.as_ptr(), blocks_enc.len())
 		};
 
 		ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
