@@ -158,30 +158,37 @@ where
 	}
 }
 
-/// system extension for the `SidechainDB`
+/// System extension for the `SidechainDB`.
 pub trait SidechainSystemExt {
-	/// get the last block number of the sidechain state
+	/// Get the last block number.
 	fn get_block_number(&self) -> Option<BlockNumber>;
 
-	/// set the last block number of the sidechain state
+	/// Set the last block number.
 	fn set_block_number(&mut self, number: &BlockNumber);
 
-	/// get the last block hash of the sidechain state
+	/// Get the last block hash.
 	fn get_last_block_hash(&self) -> Option<BlockHash>;
 
-	/// set the last block hash of the sidechain state
+	/// Set the last block hash.
 	fn set_last_block_hash(&mut self, hash: &BlockHash);
 
-	/// get the timestamp of the sidechain state
+	/// Get the timestamp of.
 	fn get_timestamp(&self) -> Option<Timestamp>;
 
-	/// set the timestamp of the sidechain state
+	/// Set the timestamp.
 	fn set_timestamp(&mut self, timestamp: &Timestamp);
+
+	/// Resets the events.
+	fn reset_events(&mut self);
 }
 
 impl<T: SidechainState> SidechainSystemExt for T {
 	fn get_block_number(&self) -> Option<BlockNumber> {
 		self.get_with_name("System", "Number")
+	}
+
+	fn set_block_number(&mut self, number: &BlockNumber) {
+		self.set_with_name("System", "Number", number)
 	}
 
 	fn set_block_number(&mut self, number: &BlockNumber) {
@@ -202,5 +209,9 @@ impl<T: SidechainState> SidechainSystemExt for T {
 
 	fn set_timestamp(&mut self, timestamp: &Timestamp) {
 		self.set_with_name("System", "Timestamp", timestamp)
+	}
+
+	fn reset_events(&mut self) {
+
 	}
 }
