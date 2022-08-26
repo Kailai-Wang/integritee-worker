@@ -21,6 +21,7 @@ compile_error!("feature \"std\" and feature \"sgx\" cannot be enabled at the sam
 #[cfg(feature = "sgx")]
 extern crate sgx_tstd as std;
 
+use core::ops::Bound;
 use codec::{Decode, Encode, EncodeAppend};
 use derive_more::{Deref, DerefMut, From};
 use serde::{Deserialize, Serialize};
@@ -55,20 +56,27 @@ pub struct SgxExternalities {
 }
 
 pub trait SgxExternalitiesTrait {
+	/// Create a new instance of `BasicExternalities`.
 	fn new() -> Self;
 	fn state(&self) -> &SgxExternalitiesType;
 	fn state_diff(&self) -> &SgxExternalitiesDiffType;
 	fn insert(&mut self, k: Vec<u8>, v: Vec<u8>) -> Option<Vec<u8>>;
+	/// Append a value to an existing key.
 	fn append(&mut self, k: Vec<u8>, v: Vec<u8>);
 	fn remove(&mut self, k: &[u8]) -> Option<Vec<u8>>;
 	fn get(&self, k: &[u8]) -> Option<&Vec<u8>>;
 	fn contains_key(&self, k: &[u8]) -> bool;
+	/// Clears all values that match the given key prefix.
+	fn clear_prefix(&mut self, key_prefix: &[u8], maybe_limit: Option<u32>) -> u32;
 	fn prune_state_diff(&mut self);
+	/// Execute the given closure while `self` is set as externalities.
+	///
+	/// Returns the result of the given closure.
 	fn execute_with<R>(&mut self, f: impl FnOnce() -> R) -> R;
+
 }
 
 impl SgxExternalitiesTrait for SgxExternalities {
-	/// Create a new instance of `BasicExternalities`
 	fn new() -> Self {
 		Default::default()
 	}
@@ -81,43 +89,59 @@ impl SgxExternalitiesTrait for SgxExternalities {
 		&self.state_diff
 	}
 
-	/// Insert key/value
-	fn insert(&mut self, k: Vec<u8>, v: Vec<u8>) -> Option<Vec<u8>> {
-		self.state_diff.insert(k.clone(), Some(v.clone()));
-		self.state.insert(k, v)
+	fn insert(&mut self, key: Vec<u8>, value: Vec<u8>) -> Option<Vec<u8>> {
+		self.state_diff.insert(key.clone(), Some(value.clone()));
+		self.state.insert(key, value)
 	}
 
-	/// Append a value to an existing key
-	fn append(&mut self, k: Vec<u8>, v: Vec<u8>) {
-		let current = self.state.entry(k.clone()).or_default();
-		let updated_value = StorageAppend::new(current).append(v);
-		self.state_diff.insert(k, Some(updated_value));
+	fn append(&mut self, key: Vec<u8>, value: Vec<u8>) {
+		let current = self.state.entry(key.clone()).or_default();
+		let updated_value = StorageAppend::new(current).append(value);
+		self.state_diff.insert(key, Some(updated_value));
 	}
 
-	/// remove key
-	fn remove(&mut self, k: &[u8]) -> Option<Vec<u8>> {
-		self.state_diff.insert(k.to_vec(), None);
-		self.state.remove(k)
+	fn remove(&mut self, key: &[u8]) -> Option<Vec<u8>> {
+		self.state_diff.insert(key.to_vec(), None);
+		self.state.remove(key)
 	}
 
-	/// get value from state of key
-	fn get(&self, k: &[u8]) -> Option<&Vec<u8>> {
-		self.state.get(k)
+	fn get(&self, key: &[u8]) -> Option<&Vec<u8>> {
+		self.state.get(key)
 	}
 
-	/// check if state contains key
-	fn contains_key(&self, k: &[u8]) -> bool {
-		self.state.contains_key(k)
+	fn contains_key(&self, key: &[u8]) -> bool {
+		self.state.contains_key(key)
 	}
 
-	/// prunes the state diff
 	fn prune_state_diff(&mut self) {
 		self.state_diff.clear();
 	}
 
-	/// Execute the given closure while `self` is set as externalities.
-	///
-	/// Returns the result of the given closure.
+	fn clear_prefix(&mut self, key_prefix: &[u8], _maybe_limit: Option<u32>) -> u32 {
+		let to_remove = self
+			.state
+			.range::<[u8], _>((Bound::Included(key_prefix), Bound::Unbounded))
+			.map(|(k, _)| k)
+			.take_while(|k| k.starts_with(key_prefix))
+			.cloned()
+			.collect::<Vec<_>>();
+
+		let count = to_remove.len() as u32;
+		for key in to_remove {
+			self.remove(&key);
+		};
+		count
+		// for (key, _value) in self.state.clone().iter().filter(|(k, _v)| k.starts_with(key_prefix)) {
+		// 	self.remove(key);
+		// 	count +=1;
+		// 	if count >= limit {break};
+		// }
+		// count
+
+		// TODO: test this
+	}
+
+
 	fn execute_with<R>(&mut self, f: impl FnOnce() -> R) -> R {
 		set_and_run_with_externalities(self, f)
 	}

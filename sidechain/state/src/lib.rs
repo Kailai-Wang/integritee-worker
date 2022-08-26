@@ -42,6 +42,7 @@ use sidechain_primitives::{
 use sp_core::H256;
 use sp_std::prelude::Vec;
 use std::marker::PhantomData;
+use sp_io::KillStorageResult;
 
 /// Sidechain wrapper and interface of the STF state.
 ///
@@ -127,11 +128,23 @@ pub trait SidechainState: Clone {
 	/// set a storage value by its full name
 	fn set_with_name<V: Encode>(&mut self, module_prefix: &str, storage_prefix: &str, value: V);
 
+	/// Clear a storage value by its full name
+	fn clear_with_name(&mut self, module_prefix: &str, storage_prefix: &str);
+
+	/// Clear all storage values for the given prefix.
+	fn clear_prefix_with_name(&mut self, module_prefix: &str, storage_prefix: &str) -> KillStorageResult;
+
 	/// get a storage value by its storage hash
 	fn get(&self, key: &[u8]) -> Option<Vec<u8>>;
 
 	/// set a storage value by its storage hash
 	fn set(&mut self, key: &[u8], value: &[u8]);
+
+	/// Clear a storage value by its storage hash.
+	fn clear(&mut self, key: &[u8]);
+
+	/// Clear a all storage values starting the given prefix.
+	fn clear_prefix(&mut self, prefix: &[u8]) -> KillStorageResult;
 }
 
 /// trait to set and get the last sidechain block of the sidechain state
@@ -191,10 +204,6 @@ impl<T: SidechainState> SidechainSystemExt for T {
 		self.set_with_name("System", "Number", number)
 	}
 
-	fn set_block_number(&mut self, number: &BlockNumber) {
-		self.set_with_name("System", "Number", number)
-	}
-
 	fn get_last_block_hash(&self) -> Option<BlockHash> {
 		self.get_with_name("System", "LastHash")
 	}
@@ -212,6 +221,8 @@ impl<T: SidechainState> SidechainSystemExt for T {
 	}
 
 	fn reset_events(&mut self) {
-
+		self.clear_with_name("System", "Events");
+		self.clear_with_name("System", "EventCount");
+		self.clear_prefix_with_name("System", "EventTopics");
 	}
 }

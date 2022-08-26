@@ -31,12 +31,13 @@ use crate::{
 	},
 	tls_ra,
 };
-use ita_stf::helpers::reset_events;
 use codec::{Decode, Encode};
 use ita_sgx_runtime::Parentchain;
 use ita_stf::{
-	helpers::account_key_hash, stf_sgx_tests, test_genesis::endowed_account as funded_pair,
-	AccountInfo, Getter, ShardIdentifier, State, StatePayload, StateTypeDiff, Stf, TrustedCall,
+	helpers::{account_key_hash, reset_events},
+	stf_sgx_tests,
+	test_genesis::endowed_account as funded_pair,
+	AccountInfo, ShardIdentifier, State, StatePayload, StateTypeDiff, Stf, TrustedCall,
 	TrustedCallSigned, TrustedGetter, TrustedOperation,
 };
 use itp_node_api::metadata::{metadata_mocks::NodeMetadataMock, provider::NodeMetadataRepository};
@@ -54,8 +55,6 @@ use its_sidechain::{
 	block_composer::{BlockComposer, ComposeBlock},
 	state::{SidechainDB, SidechainState, SidechainSystemExt},
 };
-use ita_stf::helpers::get_events_unbounded;
-use log::*;
 use sgx_tunittest::*;
 use sgx_types::size_t;
 use sidechain_primitives::{
@@ -636,7 +635,6 @@ pub fn test_retrieve_event_count() {
 	let transfer_value: u128 = 1_000;
 	// Events will only get executed after genesis.
 	state.execute_with(|| set_block_number(100));
-	state.execute_with(|| set_events(vec![]));
 
 	// Execute a transfer extrinsic to generate events via the Balance pallet.
 	let trusted_call = TrustedCall::balance_transfer(
@@ -661,8 +659,6 @@ pub fn test_retrieve_event_count() {
 
 	// Ensure that the events storage has been cleared.
 	assert_eq!(state.execute_with(|| get_events().len()), 0);
-
-
 }
 
 fn execute_trusted_calls(
