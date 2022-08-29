@@ -21,8 +21,8 @@ compile_error!("feature \"std\" and feature \"sgx\" cannot be enabled at the sam
 #[cfg(feature = "sgx")]
 extern crate sgx_tstd as std;
 
-use core::ops::Bound;
 use codec::{Decode, Encode, EncodeAppend};
+use core::ops::Bound;
 use derive_more::{Deref, DerefMut, From};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, vec, vec::Vec};
@@ -73,7 +73,6 @@ pub trait SgxExternalitiesTrait {
 	///
 	/// Returns the result of the given closure.
 	fn execute_with<R>(&mut self, f: impl FnOnce() -> R) -> R;
-
 }
 
 impl SgxExternalitiesTrait for SgxExternalities {
@@ -129,18 +128,9 @@ impl SgxExternalitiesTrait for SgxExternalities {
 		let count = to_remove.len() as u32;
 		for key in to_remove {
 			self.remove(&key);
-		};
+		}
 		count
-		// for (key, _value) in self.state.clone().iter().filter(|(k, _v)| k.starts_with(key_prefix)) {
-		// 	self.remove(key);
-		// 	count +=1;
-		// 	if count >= limit {break};
-		// }
-		// count
-
-		// TODO: test this
 	}
-
 
 	fn execute_with<R>(&mut self, f: impl FnOnce() -> R) -> R {
 		set_and_run_with_externalities(self, f)
@@ -299,5 +289,39 @@ pub mod tests {
 
 		// ext1 and ext2 are unrelated.
 		assert_eq!(ext.get(&world), None);
+	}
+
+	#[test]
+	fn clear_prefix_works() {
+		let mut externalities = SgxExternalities::default();
+		let non_house_key = b"window house".to_vec();
+		let non_house_value = b"test_string".to_vec();
+		// Fill state.
+		externalities.execute_with(|| {
+			with_externalities(|e| {
+				e.insert(b"house_building".to_vec(), b"empire_state".to_vec());
+				e.insert(b"house".to_vec(), b"ginger_bread".to_vec());
+				e.insert(b"house door".to_vec(), b"right".to_vec());
+				e.insert(non_house_key.clone(), non_house_value.clone());
+			})
+			.unwrap()
+		});
+		let state_len =
+			externalities.execute_with(|| with_externalities(|e| e.state.0.len()).unwrap());
+		assert_eq!(state_len, 4);
+
+		let number_of_removed_items = externalities
+			.execute_with(|| with_externalities(|e| e.clear_prefix(b"house", None)).unwrap());
+		assert_eq!(number_of_removed_items, 3);
+
+		let state_len =
+			externalities.execute_with(|| with_externalities(|e| e.state.0.len()).unwrap());
+		assert_eq!(state_len, 1);
+		let stored_value = externalities.execute_with(|| {
+			with_externalities(|e| {
+				assert_eq!(e.get(&non_house_key).unwrap().clone(), non_house_value)
+			})
+		});
+		assert!(stored_value.is_some());
 	}
 }
