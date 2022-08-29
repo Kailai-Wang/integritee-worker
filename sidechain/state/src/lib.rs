@@ -40,9 +40,9 @@ use sidechain_primitives::{
 	types::{BlockHash, BlockNumber, Timestamp},
 };
 use sp_core::H256;
+use sp_io::KillStorageResult;
 use sp_std::prelude::Vec;
 use std::marker::PhantomData;
-use sp_io::KillStorageResult;
 
 /// Sidechain wrapper and interface of the STF state.
 ///
@@ -132,7 +132,11 @@ pub trait SidechainState: Clone {
 	fn clear_with_name(&mut self, module_prefix: &str, storage_prefix: &str);
 
 	/// Clear all storage values for the given prefix.
-	fn clear_prefix_with_name(&mut self, module_prefix: &str, storage_prefix: &str) -> KillStorageResult;
+	fn clear_prefix_with_name(
+		&mut self,
+		module_prefix: &str,
+		storage_prefix: &str,
+	) -> KillStorageResult;
 
 	/// get a storage value by its storage hash
 	fn get(&self, key: &[u8]) -> Option<Vec<u8>>;
@@ -144,7 +148,7 @@ pub trait SidechainState: Clone {
 	fn clear(&mut self, key: &[u8]);
 
 	/// Clear a all storage values starting the given prefix.
-	fn clear_prefix(&mut self, prefix: &[u8]) -> KillStorageResult;
+	fn clear_sidechain_prefix(&mut self, prefix: &[u8]) -> KillStorageResult;
 }
 
 /// trait to set and get the last sidechain block of the sidechain state

@@ -24,8 +24,7 @@ use itp_sgx_externalities::SgxExternalitiesTrait;
 use itp_storage::keys::storage_value_key;
 use log::{error, info};
 use sp_core::{hashing::blake2_256, H256};
-use sp_io::storage;
-use sp_io::KillStorageResult;
+use sp_io::{storage, KillStorageResult};
 use std::vec::Vec;
 
 impl<SidechainBlock, T> SidechainState for SidechainDB<SidechainBlock, T>
@@ -65,7 +64,11 @@ where
 		self.ext_mut().clear_with_name(module_prefix, storage_prefix)
 	}
 
-	fn clear_prefix_with_name(&mut self, module_prefix: &str, storage_prefix: &str) -> KillStorageResult {
+	fn clear_prefix_with_name(
+		&mut self,
+		module_prefix: &str,
+		storage_prefix: &str,
+	) -> KillStorageResult {
 		self.ext_mut().clear_prefix_with_name(module_prefix, storage_prefix)
 	}
 
@@ -81,8 +84,8 @@ where
 		self.ext_mut().clear(key)
 	}
 
-	fn clear_prefix(&mut self, prefix: &[u8]) -> KillStorageResult {
-		KillStorageResult::AllRemoved(self.ext_mut().clear_prefix(prefix, None))
+	fn clear_sidechain_prefix(&mut self, prefix: &[u8]) -> KillStorageResult {
+		self.ext_mut().clear_sidechain_prefix(prefix)
 	}
 }
 
@@ -145,14 +148,16 @@ impl<T: SgxExternalitiesTrait + Clone + StateHash> SidechainState for T {
 		self.set(&storage_value_key(module_prefix, storage_prefix), &value.encode())
 	}
 
-	// FIXME: is that really without execute with.. ???
 	fn clear_with_name(&mut self, module_prefix: &str, storage_prefix: &str) {
 		self.clear(&storage_value_key(module_prefix, storage_prefix))
 	}
 
-	// FIXME: is that really without execute with.. ???
-	fn clear_prefix_with_name(&mut self, module_prefix: &str, storage_prefix: &str) -> KillStorageResult {
-		KillStorageResult::AllRemoved(self.clear_prefix(&storage_value_key(module_prefix, storage_prefix), None))
+	fn clear_prefix_with_name(
+		&mut self,
+		module_prefix: &str,
+		storage_prefix: &str,
+	) -> KillStorageResult {
+		self.clear_sidechain_prefix(&storage_value_key(module_prefix, storage_prefix))
 	}
 
 	fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
@@ -167,7 +172,7 @@ impl<T: SgxExternalitiesTrait + Clone + StateHash> SidechainState for T {
 		self.execute_with(|| sp_io::storage::clear(key))
 	}
 
-	fn clear_prefix(&mut self, prefix: &[u8]) -> KillStorageResult {
+	fn clear_sidechain_prefix(&mut self, prefix: &[u8]) -> KillStorageResult {
 		self.execute_with(|| sp_io::storage::clear_prefix(prefix, None))
 	}
 }
