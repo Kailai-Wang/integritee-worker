@@ -68,6 +68,11 @@ use sp_core::{crypto::Pair, ed25519 as spEd25519, H256};
 use sp_runtime::traits::Header as HeaderT;
 use std::{string::String, sync::Arc, time::Duration, vec::Vec};
 
+#[cfg(feature = "evm")]
+use crate::test::evm_pallet_tests;
+
+use crate::test::fixtures::test_setup::TestTopPoolAuthor;
+
 type TestStfExecutor =
 	StfExecutor<OcallApi, HandleStateMock, NodeMetadataRepository<NodeMetadataMock>>;
 
@@ -663,6 +668,7 @@ pub fn test_retrieve_event_count() {
 
 fn execute_trusted_calls(
 	shard: &ShardIdentifier,
+
 	stf_executor: &TestStfExecutor,
 	top_pool_author: &TestTopPoolAuthor,
 ) -> BatchExecutionResult<State> {

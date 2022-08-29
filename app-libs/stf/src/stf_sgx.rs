@@ -468,8 +468,11 @@ impl Stf {
 		})
 	}
 
-	pub fn account_data(ext: &mut impl SgxExternalitiesTrait, account: &AccountId) -> AccountData {
-		ext.execute_with(|| System::account(account).data)
+	pub fn account_data(
+		ext: &mut impl SgxExternalitiesTrait,
+		account: &AccountId,
+	) -> Option<AccountData> {
+		ext.execute_with(|| account_data(account))
 	}
 }
 
