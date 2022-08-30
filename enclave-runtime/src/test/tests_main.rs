@@ -663,7 +663,7 @@ pub fn test_retrieve_event_count() {
 	state.execute_with(|| reset_events());
 
 	// Ensure that the events storage has been cleared.
-	assert_eq!(state.execute_with(|| get_events().len()), 0);
+	assert!(state.execute_with(|| get_events()).is_none());
 }
 
 fn execute_trusted_calls(
