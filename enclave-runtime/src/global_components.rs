@@ -21,7 +21,7 @@
 //! and ensures that the global instances are initialized once.
 
 use crate::{ocall::OcallApi, rpc::rpc_response_channel::RpcResponseChannel};
-use ita_stf::{Hash, State as StfState};
+use ita_stf::Hash;
 use itc_direct_rpc_server::{
 	rpc_connection_registry::ConnectionRegistry, rpc_responder::RpcResponder,
 	rpc_watch_extractor::RpcWatchExtractor, rpc_ws_handler::RpcWsHandler,
@@ -64,7 +64,6 @@ use its_sidechain::{
 	state::SidechainDB,
 	top_pool_executor::TopPoolOperationHandler,
 };
-use primitive_types::H256;
 use sgx_crypto_helper::rsa3072::Rsa3072KeyPair;
 use sidechain_primitives::{
 	traits::SignedBlock as SignedSidechainBlockTrait,
@@ -75,8 +74,7 @@ use sp_core::ed25519::Pair;
 pub type EnclaveStateKeyRepository = KeyRepository<Aes, AesSeal>;
 pub type EnclaveShieldingKeyRepository = KeyRepository<Rsa3072KeyPair, Rsa3072Seal>;
 pub type EnclaveStateFileIo = SgxStateFileIo<EnclaveStateKeyRepository>;
-pub type EnclaveStateSnapshotRepository =
-	StateSnapshotRepository<EnclaveStateFileIo, StfState, H256>;
+pub type EnclaveStateSnapshotRepository = StateSnapshotRepository<EnclaveStateFileIo>;
 pub type EnclaveStateHandler = StateHandler<EnclaveStateSnapshotRepository>;
 pub type EnclaveOCallApi = OcallApi;
 pub type EnclaveNodeMetadataRepository = NodeMetadataRepository<NodeMetadata>;
