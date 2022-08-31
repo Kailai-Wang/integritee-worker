@@ -242,7 +242,7 @@ pub fn produce_sidechain_block_and_import_it() {
 	assert!(event_topics.len() > 0);
 
 	// Test if propose() actually resets events, otherwise we will have an ever growing event state.
-	// Top Pool should now be empty, meaning no calls executed, no events generated, but reseted nonetheless.
+	// Top Pool should now be empty. Hence, no calls get executed, therefore no events generated, but reset nonetheless.
 	info!("Executing AURA on slot, second time..");
 	let proposer_environment =
 		ProposerFactory::new(top_pool_operation_handler, stf_executor.clone(), block_composer);
