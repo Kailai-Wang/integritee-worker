@@ -209,7 +209,7 @@ pub mod storage {
 	/// blocks.
 	pub fn clear_prefix(prefix: &[u8], maybe_limit: Option<u32>) -> KillStorageResult {
 		let number_of_removed_values =
-			with_externalities(|ext| ext.clear_prefix(&prefix, maybe_limit)).unwrap_or_default();
+			with_externalities(|ext| ext.clear_prefix(prefix, maybe_limit)).unwrap_or_default();
 		KillStorageResult::AllRemoved(number_of_removed_values)
 	}
 
