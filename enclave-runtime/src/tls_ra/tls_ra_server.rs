@@ -19,7 +19,7 @@
 
 use super::{authentication::ClientAuth, Opcode, TcpHeader};
 use crate::{
-	attestation::create_ra_report_and_signature,
+	attestation_handler::create_ra_report_and_signature,
 	error::{Error as EnclaveError, Result as EnclaveResult},
 	global_components::{
 		GLOBAL_SHIELDING_KEY_REPOSITORY_COMPONENT, GLOBAL_STATE_KEY_REPOSITORY_COMPONENT,
@@ -229,7 +229,7 @@ fn tls_server_config<A: EnclaveAttestationOCallApi + 'static>(
 	ocall_api: A,
 	skip_ra: bool,
 ) -> EnclaveResult<ServerConfig> {
-	let (key_der, cert_der) = create_ra_report_and_signature(sign_type, &ocall_api, skip_ra)?;
+	let (key_der, cert_der) = create_ra_report_and_signature(sign_type, skip_ra)?;
 
 	let mut cfg = rustls::ServerConfig::new(Arc::new(ClientAuth::new(true, skip_ra, ocall_api)));
 	let certs = vec![rustls::Certificate(cert_der)];
