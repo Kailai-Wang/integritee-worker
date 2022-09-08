@@ -34,9 +34,9 @@ use crate::{
 use codec::{Decode, Encode};
 use ita_sgx_runtime::Parentchain;
 use ita_stf::{
-	helpers::{account_key_hash, reset_events},
+	helpers::{account_key_hash, get_event_count, get_events, reset_events, set_block_number},
 	stf_sgx_tests,
-	test_genesis::endowed_account as funded_pair,
+	test_genesis::{endowed_account as funded_pair, unendowed_account},
 	AccountInfo, ShardIdentifier, State, StatePayload, StateTypeDiff, Stf, TrustedCall,
 	TrustedCallSigned, TrustedGetter, TrustedOperation,
 };
@@ -629,7 +629,7 @@ pub fn test_retrieve_events() {
 	.sign(&sender.clone().into(), 0, &mrenclave, &shard);
 	Stf::execute(&mut state, trusted_call, &mut opaque_vec, [0u8, 1u8]).unwrap();
 
-	assert_eq!(state.execute_with(|| get_events().len()), 3);
+	assert_eq!(state.execute_with(|| get_events().unwrap().len()), 3);
 }
 
 pub fn test_retrieve_event_count() {
@@ -652,12 +652,31 @@ pub fn test_retrieve_event_count() {
 	// when
 	Stf::execute(&mut state, trusted_call, &mut opaque_vec, [0u8, 1u8]).unwrap();
 
-	// then
-	let receiver_acc_info =
-		state.execute_with(|| get_account_info(&receiver.public().into()).unwrap());
-	assert_eq!(receiver_acc_info.data.free, transfer_value);
+	let event_count = state.execute_with(|| get_event_count().unwrap());
+	assert_eq!(event_count, 3);
+}
+
+pub fn test_reset_events() {
+	let (_, mut state, shard, mrenclave, _, _) = test_setup();
+	let mut opaque_vec = Vec::new();
+	let sender = funded_pair();
+	let receiver = unendowed_account();
+	let transfer_value: u128 = 1_000;
+	// Events will only get executed after genesis.
+	state.execute_with(|| set_block_number(100));
+
+	// Execute a transfer extrinsic to generate events via the Balance pallet.
+	let trusted_call = TrustedCall::balance_transfer(
+		sender.public().into(),
+		receiver.public().into(),
+		transfer_value,
+	)
+	.sign(&sender.clone().into(), 0, &mrenclave, &shard);
+	Stf::execute(&mut state, trusted_call, &mut opaque_vec, [0u8, 1u8]).unwrap();
+	let receiver_acc_info = Stf::account_data(&mut state, &receiver.public().into());
+	assert_eq!(receiver_acc_info.free, transfer_value);
 	// Ensure that there really have been events generated.
-	assert_eq!(state.execute_with(|| get_events().len()), 3);
+	assert_eq!(state.execute_with(|| get_events().unwrap().len()), 3);
 
 	// Remove the events.
 	state.execute_with(|| reset_events());

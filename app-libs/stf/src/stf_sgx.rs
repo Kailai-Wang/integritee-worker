@@ -19,10 +19,12 @@
 use crate::test_genesis::test_genesis_setup;
 
 use crate::{
-	helpers::{enclave_signer_account, ensure_enclave_signer_account},
-	AccountData, AccountId, Getter, Index, ParentchainHeader, PublicGetter, ShardIdentifier, State,
-	StateTypeDiff, Stf, StfError, StfResult, TrustedCall, TrustedCallSigned, TrustedGetter,
-	ENCLAVE_ACCOUNT_KEY,
+	helpers::{
+		enclave_signer_account, ensure_enclave_signer_account, get_event_count, get_event_topics,
+	},
+	AccountData, AccountId, BlockNumber, EventIndex, EventRecord, Getter, Hash, Index,
+	ParentchainHeader, PublicGetter, ShardIdentifier, State, StateTypeDiff, Stf, StfError,
+	StfResult, TrustedCall, TrustedCallSigned, TrustedGetter, ENCLAVE_ACCOUNT_KEY,
 };
 use codec::Encode;
 use ita_sgx_runtime::{Runtime, Sudo, System};
@@ -468,11 +470,23 @@ impl Stf {
 		})
 	}
 
-	pub fn account_data(
+	pub fn account_data(ext: &mut impl SgxExternalitiesTrait, account: &AccountId) -> AccountData {
+		ext.execute_with(|| System::account(account).data)
+	}
+
+	pub fn events(ext: &mut impl SgxExternalitiesTrait) -> Vec<Box<EventRecord>> {
+		ext.execute_with(|| System::read_events_no_consensus())
+	}
+
+	pub fn event_count(ext: &mut impl SgxExternalitiesTrait) -> Option<EventIndex> {
+		ext.execute_with(|| get_event_count())
+	}
+
+	pub fn event_topics(
 		ext: &mut impl SgxExternalitiesTrait,
-		account: &AccountId,
-	) -> Option<AccountData> {
-		ext.execute_with(|| account_data(account))
+		topic: &Hash,
+	) -> Option<Vec<(BlockNumber, EventIndex)>> {
+		ext.execute_with(|| get_event_topics(topic))
 	}
 }
 

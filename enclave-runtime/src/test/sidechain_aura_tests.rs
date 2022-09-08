@@ -236,7 +236,7 @@ pub fn produce_sidechain_block_and_import_it() {
 	assert_eq!(free_balance, transfered_amount);
 	let event_count = Stf::event_count(&mut state).unwrap();
 	assert!(event_count > 0);
-	let events = Stf::events(&mut state).unwrap();
+	let events = Stf::events(&mut state);
 	assert!(events.len() > 0);
 	let event_topics = Stf::event_topics(&mut state, &H256::from([7; 32])).unwrap();
 	assert!(event_topics.len() > 0);
@@ -268,7 +268,7 @@ pub fn produce_sidechain_block_and_import_it() {
 	let mut state = state_handler.load(&shard_id).unwrap();
 	assert!(Stf::event_count(&mut state).is_none());
 	assert!(Stf::event_topics(&mut state, &H256::from([7; 32])).is_none());
-	assert!(Stf::events(&mut state).is_none());
+	assert_eq!(Stf::events(&mut state).len(), 0);
 }
 
 fn encrypted_trusted_operation_transfer_balance<

@@ -14,7 +14,10 @@
 	limitations under the License.
 
 */
-use crate::{AccountId, StfError, StfResult, ENCLAVE_ACCOUNT_KEY};
+use crate::{
+	stf_sgx_primitives::types::*, AccountId, EventIndex, EventRecord, StfError, StfResult,
+	ENCLAVE_ACCOUNT_KEY, H256,
+};
 use codec::{Decode, Encode};
 #[cfg(all(not(feature = "std"), feature = "sgx"))]
 use ita_sgx_runtime::System;
@@ -100,35 +103,6 @@ pub fn set_event_topic(topic: &H256, value: Vec<(BlockNumber, EventIndex)>) {
 	);
 }
 
-pub fn get_account_info(who: &AccountId) -> Option<AccountInfo> {
-	let maybe_storage_map =
-		get_storage_map("System", "Account", who, &StorageHasher::Blake2_128Concat);
-	if maybe_storage_map.is_none() {
-		info!("Failed to get account info for account {}", account_id_to_string(who));
-	}
-	maybe_storage_map
-}
-
-pub fn get_events() -> Option<Vec<Box<EventRecord>>> {
-	get_storage_value("System", "Events")
-}
-
-pub fn get_event_count() -> Option<EventIndex> {
-	get_storage_value("System", "EventCount")
-}
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-pub fn reset_events() {
-	System::reset_events()
-}
-
-pub fn set_event_topic(topic: &H256, value: Vec<(BlockNumber, EventIndex)>) {
-	sp_io::storage::set(
-		&storage_map_key("System", "EventTopics", topic, &StorageHasher::Blake2_128Concat),
-		&value.encode(),
-	);
-}
-
 pub fn get_event_topics(topic: &H256) -> Option<Vec<(BlockNumber, EventIndex)>> {
 	get_storage_map("System", "EventTopics", topic, &StorageHasher::Blake2_128Concat)
 }
@@ -139,81 +113,6 @@ pub fn get_event_topics(topic: &H256) -> Option<Vec<(BlockNumber, EventIndex)>> 
 /// However, substrate will change the event handling soon, so this should be acceptable for now.
 pub fn get_events_unbounded() -> Vec<EventRecord> {
 	get_events().unwrap_or_default().into_iter().map(|e| *e).collect()
-}
-
-pub fn get_event_topics(topic: &H256) -> Option<Vec<(BlockNumber, EventIndex)>> {
-	get_storage_map("System", "EventTopics", topic, &StorageHasher::Blake2_128Concat)
-}
-
-/// FIXME: Unbound storage call
-/// Read the events from runtime. This has a potentially very large return value,
-/// as the event storage size is not limited and depends on the number and types of executed calls.
-/// However, substrate will change the event handling soon, so this should be acceptable for now.
-pub fn get_events_unbounded() -> Vec<EventRecord> {
-	get_events().unwrap_or_default().into_iter().map(|e| *e).collect()
-}
-
-pub fn validate_nonce(who: &AccountId, nonce: Index) -> StfResult<()> {
-	let expected_nonce = match get_account_info(who) {
-		None => {
-			info!(
-				"Attempted to validate account nonce of non-existent account: {}",
-				account_id_to_string(who)
-			);
-			0
-		},
-		Some(account_info) => account_info.nonce,
-	};
-	if expected_nonce == nonce {
-		return Ok(())
-	}
-	Err(StfError::InvalidNonce(nonce))
-}
-
-/// increment nonce after a successful call execution
-pub fn increment_nonce(account: &AccountId) {
-	//FIXME: Proper error handling - should be taken into
-	// consideration after implementing pay fee check
-	if let Some(mut acc_info) = get_account_info(account) {
-		debug!("incrementing account nonce");
-		acc_info.nonce += 1;
-		sp_io::storage::set(&account_key_hash(account), &acc_info.encode());
-		debug!(
-			"updated account {} nonce: {:?}",
-			account_id_to_string(account),
-			get_account_info(account).unwrap().nonce
-		);
-	} else {
-		error!(
-			"tried to increment nonce of a non-existent account: {}",
-			account_id_to_string(account)
-		)
-	}
-}
-
-pub fn account_nonce(account: &AccountId) -> Index {
-	if let Some(info) = get_account_info(account) {
-		info.nonce
-	} else {
-		info!("Attempted to get nonce of non-existent account: {}", account_id_to_string(account));
-		0_u32
-	}
-}
-
-pub fn account_data(account: &AccountId) -> Option<AccountData> {
-	if let Some(info) = get_account_info(account) {
-		Some(info.data)
-	} else {
-		info!(
-			"Attempted to get account data of non-existent account: {}",
-			account_id_to_string(account)
-		);
-		None
-	}
-}
-
-pub fn root() -> AccountId {
-	get_storage_value("Sudo", "Key").expect("No root account")
 }
 
 pub fn enclave_signer_account() -> AccountId {
@@ -233,4 +132,8 @@ pub fn ensure_enclave_signer_account(account: &AccountId) -> StfResult<()> {
 		);
 		Err(StfError::RequireEnclaveSignerAccount)
 	}
+}
+
+pub fn set_block_number(block_number: u32) {
+	sp_io::storage::set(&storage_value_key("System", "Number"), &block_number.encode());
 }

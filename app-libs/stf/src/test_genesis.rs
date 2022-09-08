@@ -16,7 +16,6 @@
 */
 
 use crate::StfError;
-use codec::Encode;
 use ita_sgx_runtime::{Balance, Runtime, System};
 use itp_sgx_externalities::{SgxExternalities, SgxExternalitiesTrait};
 use itp_storage::storage_value_key;
