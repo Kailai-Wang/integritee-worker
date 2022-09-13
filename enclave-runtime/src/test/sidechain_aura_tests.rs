@@ -231,7 +231,7 @@ pub fn produce_sidechain_block_and_import_it() {
 	assert!(event_count > 0);
 	let events = Stf::events(&mut state);
 	assert!(events.len() > 0);
-	let event_topics = Stf::event_topics(&mut state, &H256::from([7; 32])).unwrap();
+	let event_topics = Stf::event_topics(&mut state, &H256::from([7; 32]));
 	assert!(event_topics.len() > 0);
 
 	// Test if propose() actually resets events, otherwise we will have an ever growing event state.
@@ -260,7 +260,7 @@ pub fn produce_sidechain_block_and_import_it() {
 
 	let mut state = state_handler.load(&shard_id).unwrap();
 	assert_eq!(Stf::event_count(&mut state), 0);
-	assert!(Stf::event_topics(&mut state, &H256::from([7; 32])).is_none());
+	assert_eq!(Stf::event_topics(&mut state, &H256::from([7; 32])).len(), 0);
 	assert_eq!(Stf::events(&mut state).len(), 0);
 }
 
