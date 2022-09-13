@@ -15,12 +15,10 @@
 
 */
 use crate::{
-	stf_sgx_primitives::types::*, AccountId, EventIndex, EventRecord, StfError, StfResult,
-	ENCLAVE_ACCOUNT_KEY, H256,
+	stf_sgx_primitives::types::*, AccountId, EventIndex, StfError, StfResult, ENCLAVE_ACCOUNT_KEY,
+	H256,
 };
 use codec::{Decode, Encode};
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-use ita_sgx_runtime::System;
 use itp_storage::{storage_double_map_key, storage_map_key, storage_value_key, StorageHasher};
 use itp_utils::stringify::account_id_to_string;
 use log::*;
@@ -82,33 +80,11 @@ pub fn get_storage_by_key_hash<V: Decode>(key: Vec<u8>) -> Option<V> {
 pub fn account_key_hash(account: &AccountId) -> Vec<u8> {
 	storage_map_key("System", "Account", account, &StorageHasher::Blake2_128Concat)
 }
-
-pub fn get_events() -> Option<Vec<Box<EventRecord>>> {
-	get_storage_value("System", "Events")
-}
-
-#[cfg(all(not(feature = "std"), feature = "sgx"))]
-pub fn reset_events() {
-	System::reset_events()
-}
-
 pub fn set_event_topic(topic: &H256, value: Vec<(BlockNumber, EventIndex)>) {
 	sp_io::storage::set(
 		&storage_map_key("System", "EventTopics", topic, &StorageHasher::Blake2_128Concat),
 		&value.encode(),
 	);
-}
-
-pub fn get_event_topics(topic: &H256) -> Option<Vec<(BlockNumber, EventIndex)>> {
-	get_storage_map("System", "EventTopics", topic, &StorageHasher::Blake2_128Concat)
-}
-
-// FIXME: Unbound storage call
-/// Read the events from runtime. This has a potentially very large return value,
-/// as the event storage size is not limited and depends on the number and types of executed calls.
-/// However, substrate will change the event handling soon, so this should be acceptable for now.
-pub fn get_events_unbounded() -> Vec<EventRecord> {
-	get_events().unwrap_or_default().into_iter().map(|e| *e).collect()
 }
 
 pub fn enclave_signer_account() -> AccountId {

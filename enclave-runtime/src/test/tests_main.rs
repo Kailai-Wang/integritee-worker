@@ -34,7 +34,7 @@ use crate::{
 use codec::Decode;
 use ita_sgx_runtime::Parentchain;
 use ita_stf::{
-	helpers::{account_key_hash, get_events, reset_events, set_block_number},
+	helpers::{account_key_hash, get_events, set_block_number},
 	stf_sgx_tests,
 	test_genesis::{endowed_account as funded_pair, unendowed_account},
 	AccountInfo, Getter, ShardIdentifier, State, StatePayload, StateTypeDiff, Stf, TrustedCall,
@@ -627,7 +627,7 @@ pub fn test_retrieve_events() {
 	.sign(&sender.clone().into(), 0, &mrenclave, &shard);
 	Stf::execute(&mut state, trusted_call, &mut opaque_vec, [0u8, 1u8]).unwrap();
 
-	assert_eq!(state.execute_with(|| get_events().unwrap().len()), 3);
+	assert_eq!(Stf::events(&mut state).len(), 3);
 }
 
 pub fn test_retrieve_event_count() {
@@ -673,18 +673,17 @@ pub fn test_reset_events() {
 	let receiver_acc_info = Stf::account_data(&mut state, &receiver.public().into());
 	assert_eq!(receiver_acc_info.free, transfer_value);
 	// Ensure that there really have been events generated.
-	assert_eq!(state.execute_with(|| get_events().unwrap().len()), 3);
+	assert_eq!(Stf::events(&mut state).len(), 3);
 
 	// Remove the events.
-	state.execute_with(|| reset_events());
+	Stf::reset_events(&mut state);
 
 	// Ensure that the events storage has been cleared.
-	assert!(state.execute_with(|| get_events()).is_none());
+	assert_eq!(Stf::events(&mut state).len(), 0);
 }
 
 fn execute_trusted_calls(
 	shard: &ShardIdentifier,
-
 	stf_executor: &TestStfExecutor,
 	top_pool_author: &TestTopPoolAuthor,
 ) -> BatchExecutionResult<State> {
