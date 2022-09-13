@@ -31,13 +31,13 @@ use crate::{
 	},
 	tls_ra,
 };
-use codec::{Decode, Encode};
+use codec::Decode;
 use ita_sgx_runtime::Parentchain;
 use ita_stf::{
 	helpers::{account_key_hash, get_event_count, get_events, reset_events, set_block_number},
 	stf_sgx_tests,
 	test_genesis::{endowed_account as funded_pair, unendowed_account},
-	AccountInfo, ShardIdentifier, State, StatePayload, StateTypeDiff, Stf, TrustedCall,
+	AccountInfo, Getter, ShardIdentifier, State, StatePayload, StateTypeDiff, Stf, TrustedCall,
 	TrustedCallSigned, TrustedGetter, TrustedOperation,
 };
 use itp_node_api::metadata::{metadata_mocks::NodeMetadataMock, provider::NodeMetadataRepository};
@@ -70,8 +70,6 @@ use std::{string::String, sync::Arc, time::Duration, vec::Vec};
 
 #[cfg(feature = "evm")]
 use crate::test::evm_pallet_tests;
-
-use crate::test::fixtures::test_setup::TestTopPoolAuthor;
 
 type TestStfExecutor =
 	StfExecutor<OcallApi, HandleStateMock, NodeMetadataRepository<NodeMetadataMock>>;
@@ -664,7 +662,6 @@ pub fn test_reset_events() {
 	let transfer_value: u128 = 1_000;
 	// Events will only get executed after genesis.
 	state.execute_with(|| set_block_number(100));
-
 	// Execute a transfer extrinsic to generate events via the Balance pallet.
 	let trusted_call = TrustedCall::balance_transfer(
 		sender.public().into(),

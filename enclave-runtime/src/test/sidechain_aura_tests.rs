@@ -117,16 +117,9 @@ pub fn produce_sidechain_block_and_import_it() {
 		parentchain_block_import_trigger.clone(),
 		ocall_api.clone(),
 	));
-	let block_composer = Arc::new(TestBlockComposer::new(
-		signer.clone(),
-		state_key_repo.clone(),
-		node_metadata_repo,
-	));
-	let proposer_environment = ProposerFactory::new(
-		top_pool_operation_handler.clone(),
-		stf_executor.clone(),
-		block_composer.clone(),
-	);
+	let block_composer = Arc::new(TestBlockComposer::new(signer.clone(), state_key_repo.clone()));
+	let proposer_environment =
+		ProposerFactory::new(top_pool_author.clone(), stf_executor.clone(), block_composer.clone());
 	let extrinsics_factory = ExtrinsicsFactoryMock::default();
 	let validator_access = ValidatorAccessMock::default();
 
@@ -175,7 +168,7 @@ pub fn produce_sidechain_block_and_import_it() {
 		exec_aura_on_slot::<_, ParentchainBlock, SignedSidechainBlock, _, _, _>(
 			slot_info.clone(),
 			signer.clone(),
-			ocall_api.as_ref().clone(),
+			ocall_api.clone(),
 			parentchain_block_import_trigger.clone(),
 			proposer_environment,
 			shards.clone(),
@@ -206,7 +199,7 @@ pub fn produce_sidechain_block_and_import_it() {
 	send_blocks_and_extrinsics::<ParentchainBlock, _, _, _, _>(
 		blocks,
 		opaque_calls,
-		propose_to_block_import_ocall_api,
+		propose_to_block_import_ocall_api.clone(),
 		&validator_access,
 		&extrinsics_factory,
 	)
@@ -245,12 +238,12 @@ pub fn produce_sidechain_block_and_import_it() {
 	// Top Pool should now be empty. Hence, no calls get executed, therefore no events generated, but reset nonetheless.
 	info!("Executing AURA on slot, second time..");
 	let proposer_environment =
-		ProposerFactory::new(top_pool_operation_handler, stf_executor.clone(), block_composer);
+		ProposerFactory::new(top_pool_author.clone(), stf_executor.clone(), block_composer.clone());
 	let (blocks, opaque_calls) =
 		exec_aura_on_slot::<_, ParentchainBlock, SignedSidechainBlock, _, _, _>(
 			slot_info,
 			signer,
-			ocall_api.as_ref().clone(),
+			ocall_api,
 			parentchain_block_import_trigger.clone(),
 			proposer_environment,
 			shards,
@@ -259,7 +252,7 @@ pub fn produce_sidechain_block_and_import_it() {
 	send_blocks_and_extrinsics::<ParentchainBlock, _, _, _, _>(
 		blocks,
 		opaque_calls,
-		&propose_to_block_import_ocall_api,
+		propose_to_block_import_ocall_api,
 		&validator_access,
 		&extrinsics_factory,
 	)
