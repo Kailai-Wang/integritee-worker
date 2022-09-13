@@ -68,9 +68,6 @@ use sp_core::{crypto::Pair, ed25519 as spEd25519, H256};
 use sp_runtime::traits::Header as HeaderT;
 use std::{string::String, sync::Arc, time::Duration, vec::Vec};
 
-#[cfg(feature = "evm")]
-use crate::test::evm_pallet_tests;
-
 type TestStfExecutor =
 	StfExecutor<OcallApi, HandleStateMock, NodeMetadataRepository<NodeMetadataMock>>;
 
