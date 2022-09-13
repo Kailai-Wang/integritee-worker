@@ -19,9 +19,7 @@
 use crate::test_genesis::test_genesis_setup;
 
 use crate::{
-	helpers::{
-		enclave_signer_account, ensure_enclave_signer_account, get_event_count, get_event_topics,
-	},
+	helpers::{enclave_signer_account, ensure_enclave_signer_account, get_event_topics},
 	AccountData, AccountId, BlockNumber, EventIndex, EventRecord, Getter, Hash, Index,
 	ParentchainHeader, PublicGetter, ShardIdentifier, State, StateTypeDiff, Stf, StfError,
 	StfResult, TrustedCall, TrustedCallSigned, TrustedGetter, ENCLAVE_ACCOUNT_KEY,
@@ -478,8 +476,8 @@ impl Stf {
 		ext.execute_with(|| System::read_events_no_consensus())
 	}
 
-	pub fn event_count(ext: &mut impl SgxExternalitiesTrait) -> Option<EventIndex> {
-		ext.execute_with(|| get_event_count())
+	pub fn event_count(ext: &mut impl SgxExternalitiesTrait) -> EventIndex {
+		ext.execute_with(|| System::event_count())
 	}
 
 	pub fn event_topics(

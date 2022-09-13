@@ -87,10 +87,6 @@ pub fn get_events() -> Option<Vec<Box<EventRecord>>> {
 	get_storage_value("System", "Events")
 }
 
-pub fn get_event_count() -> Option<EventIndex> {
-	get_storage_value("System", "EventCount")
-}
-
 #[cfg(all(not(feature = "std"), feature = "sgx"))]
 pub fn reset_events() {
 	System::reset_events()

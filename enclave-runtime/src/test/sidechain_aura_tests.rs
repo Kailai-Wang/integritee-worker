@@ -227,7 +227,7 @@ pub fn produce_sidechain_block_and_import_it() {
 	let mut state = state_handler.load(&shard_id).unwrap();
 	let free_balance = Stf::account_data(&mut state, &receiver.public().into()).free;
 	assert_eq!(free_balance, transfered_amount);
-	let event_count = Stf::event_count(&mut state).unwrap();
+	let event_count = Stf::event_count(&mut state);
 	assert!(event_count > 0);
 	let events = Stf::events(&mut state);
 	assert!(events.len() > 0);
@@ -259,7 +259,7 @@ pub fn produce_sidechain_block_and_import_it() {
 	.unwrap();
 
 	let mut state = state_handler.load(&shard_id).unwrap();
-	assert!(Stf::event_count(&mut state).is_none());
+	assert_eq!(Stf::event_count(&mut state), 0);
 	assert!(Stf::event_topics(&mut state, &H256::from([7; 32])).is_none());
 	assert_eq!(Stf::events(&mut state).len(), 0);
 }

@@ -34,7 +34,7 @@ use crate::{
 use codec::Decode;
 use ita_sgx_runtime::Parentchain;
 use ita_stf::{
-	helpers::{account_key_hash, get_event_count, get_events, reset_events, set_block_number},
+	helpers::{account_key_hash, get_events, reset_events, set_block_number},
 	stf_sgx_tests,
 	test_genesis::{endowed_account as funded_pair, unendowed_account},
 	AccountInfo, Getter, ShardIdentifier, State, StatePayload, StateTypeDiff, Stf, TrustedCall,
@@ -650,7 +650,7 @@ pub fn test_retrieve_event_count() {
 	// when
 	Stf::execute(&mut state, trusted_call, &mut opaque_vec, [0u8, 1u8]).unwrap();
 
-	let event_count = state.execute_with(|| get_event_count().unwrap());
+	let event_count = Stf::event_count(&mut state);
 	assert_eq!(event_count, 3);
 }
 
