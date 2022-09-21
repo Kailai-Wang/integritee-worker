@@ -2269,6 +2269,23 @@ dependencies = [
 [[package]]
 name = "ias-verify"
 version = "0.1.4"
+source = "git+https://github.com/integritee-network/pallets.git?branch=gk/propose_nth_block#12ec50984988dc1eee5b714b1166b87de6faf50b"
+dependencies = [
+ "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "chrono 0.4.22",
+ "frame-support",
+ "parity-scale-codec",
+ "scale-info",
+ "serde_json 1.0.85",
+ "sp-core",
+ "sp-io 6.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
+ "sp-std 4.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
+ "webpki 0.21.0",
+]
+
+[[package]]
+name = "ias-verify"
+version = "0.1.4"
 source = "git+https://github.com/integritee-network/pallets.git?branch=master#5749b0234a163b3e496a8da6e22d94e26a7ce16e"
 dependencies = [
  "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2408,7 +2425,7 @@ dependencies = [
  "sp-runtime",
  "substrate-api-client",
  "substrate-client-keystore",
- "teerex-primitives",
+ "teerex-primitives 0.1.0 (git+https://github.com/integritee-network/pallets.git?branch=gk/propose_nth_block)",
  "ws",
 ]
 
@@ -2511,7 +2528,7 @@ dependencies = [
  "sp-keyring",
  "sp-runtime",
  "substrate-api-client",
- "teerex-primitives",
+ "teerex-primitives 0.1.0 (git+https://github.com/integritee-network/pallets.git?branch=gk/propose_nth_block)",
  "thiserror 1.0.35",
  "tokio",
  "warp",
@@ -3492,6 +3509,7 @@ dependencies = [
  "itp-node-api-metadata",
  "itp-node-api-metadata-provider",
  "itp-ocall-api",
+ "itp-settings",
  "itp-sgx-crypto",
  "itp-sgx-externalities",
  "itp-test",
@@ -4892,7 +4910,7 @@ dependencies = [
 [[package]]
 name = "pallet-parentchain"
 version = "0.9.0"
-source = "git+https://github.com/integritee-network/pallets.git?branch=master#5749b0234a163b3e496a8da6e22d94e26a7ce16e"
+source = "git+https://github.com/integritee-network/pallets.git?branch=gk/propose_nth_block#12ec50984988dc1eee5b714b1166b87de6faf50b"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4989,7 +5007,7 @@ dependencies = [
  "sp-io 6.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
  "sp-runtime",
  "sp-std 4.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
- "teerex-primitives",
+ "teerex-primitives 0.1.0 (git+https://github.com/integritee-network/pallets.git?branch=master)",
 ]
 
 [[package]]
@@ -5032,7 +5050,7 @@ source = "git+https://github.com/integritee-network/pallets.git?branch=master#57
 dependencies = [
  "frame-support",
  "frame-system",
- "ias-verify",
+ "ias-verify 0.1.4 (git+https://github.com/integritee-network/pallets.git?branch=master)",
  "log 0.4.17",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -5042,7 +5060,7 @@ dependencies = [
  "sp-io 6.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
  "sp-runtime",
  "sp-std 4.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
- "teerex-primitives",
+ "teerex-primitives 0.1.0 (git+https://github.com/integritee-network/pallets.git?branch=master)",
 ]
 
 [[package]]
@@ -7529,9 +7547,23 @@ dependencies = [
 [[package]]
 name = "teerex-primitives"
 version = "0.1.0"
+source = "git+https://github.com/integritee-network/pallets.git?branch=gk/propose_nth_block#12ec50984988dc1eee5b714b1166b87de6faf50b"
+dependencies = [
+ "ias-verify 0.1.4 (git+https://github.com/integritee-network/pallets.git?branch=gk/propose_nth_block)",
+ "parity-scale-codec",
+ "scale-info",
+ "serde 1.0.144",
+ "sp-core",
+ "sp-io 6.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
+ "sp-std 4.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
+]
+
+[[package]]
+name = "teerex-primitives"
+version = "0.1.0"
 source = "git+https://github.com/integritee-network/pallets.git?branch=master#5749b0234a163b3e496a8da6e22d94e26a7ce16e"
 dependencies = [
- "ias-verify",
+ "ias-verify 0.1.4 (git+https://github.com/integritee-network/pallets.git?branch=master)",
  "parity-scale-codec",
  "scale-info",
  "serde 1.0.144",
